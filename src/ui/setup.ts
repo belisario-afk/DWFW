@@ -21,13 +21,13 @@ export function setupUI(ctx: {
     acc += dt; frames++
     if (acc >= 500) {
       const fps = Math.round((frames / acc) * 1000)
-      fpsEl.textContent = `FPS ${fps} • ${navigator.userAgentData?.brands?.map(b=>b.brand).join(',') || navigator.userAgent}`
+      fpsEl.textContent = `FPS ${fps} • ${navigator.userAgent}`
       frames = 0; acc = 0
     }
     requestAnimationFrame(raf)
   }; raf()
 
-  // Controls
+  // Buttons and inputs
   const playPause = el('playPause') as HTMLButtonElement
   const prev = el('prev') as HTMLButtonElement
   const next = el('next') as HTMLButtonElement
@@ -37,6 +37,7 @@ export function setupUI(ctx: {
   const fullscreen = el('fullscreen') as HTMLButtonElement
   const record = el('record') as HTMLButtonElement
   const time = el('time') as HTMLSpanElement
+  const captureBtn = el('captureBtn') as HTMLButtonElement
 
   const sceneSelect = el('sceneSelect') as HTMLSelectElement
   const autoCine = el('autoCine') as HTMLButtonElement
@@ -45,17 +46,18 @@ export function setupUI(ctx: {
 
   const qScale = el('qScale') as HTMLInputElement
   const qMSAA = el('qMSAA') as HTMLSelectElement
-  const qTAA = el('qTAA') as HTMLInputElement
   const qBloom = el('qBloom') as HTMLInputElement
+  const qBloomInt = el('qBloomInt') as HTMLInputElement
   const qSSAO = el('qSSAO') as HTMLInputElement
-  const qMB = el('qMB') as HTMLInputElement
   const qDOF = el('qDOF') as HTMLInputElement
+  const qCA = el('qCA') as HTMLInputElement
+  const qVig = el('qVig') as HTMLInputElement
+  const qGrain = el('qGrain') as HTMLInputElement
   const qSteps = el('qSteps') as HTMLInputElement
   const qParticles = el('qParticles') as HTMLInputElement
   const qFluid = el('qFluid') as HTMLSelectElement
 
   const vjIntensity = el('vjIntensity') as HTMLInputElement
-  const vjBloom = el('vjBloom') as HTMLInputElement
   const vjGlitch = el('vjGlitch') as HTMLInputElement
   const vjSpeed = el('vjSpeed') as HTMLInputElement
   const vjLearn = el('vjLearn') as HTMLButtonElement
@@ -74,6 +76,12 @@ export function setupUI(ctx: {
   next.onclick = () => ctx.api.next()
   volume.oninput = () => ctx.api.setVolume(parseFloat(volume.value))
   fullscreen.onclick = () => document.documentElement.requestFullscreen().catch(()=>{})
+
+  // Experimental: capture tab/system audio to drive precise analysis
+  captureBtn.onclick = async () => {
+    const ok = await ctx.analyzer.enableDisplayCapture()
+    alert(ok ? 'Audio capture enabled. Visuals now react to real audio.' : 'Audio capture was blocked or not granted.')
+  }
 
   let rec: MediaRecorder | null = null
   let chunks: BlobPart[] = []
@@ -127,21 +135,15 @@ export function setupUI(ctx: {
     const target = Math.round(parseInt(seek.value) / 1000 * dur)
     ctx.api.seek(target)
   }
-  const fmt = (ms: number) => {
-    const s = Math.floor(ms/1000), m = Math.floor(s/60), ss = s%60
-    return `${m}:${String(ss).padStart(2,'0')}`
-  }
+  const fmt = (ms: number) => { const s = Math.floor(ms/1000), m = Math.floor(s/60), ss = s%60; return `${m}:${String(ss).padStart(2,'0')}` }
 
   // Scene selection
   sceneSelect.onchange = () => ctx.engine.switchScene(sceneSelect.value)
-  autoCine.onclick = () => {
-    // will automatically switch on next track via Director
-    alert('Auto-Cinematic uses Spotify audio features to pick scenes per track.')
-  }
+  autoCine.onclick = () => alert('Auto-Cinematic uses Spotify audio features per track.')
 
   cueAdd.onclick = async () => {
     const bar = prompt('Cue at bar number?', '33')
-    const scene = prompt('Scene (Particles, Fluid, Tunnel, Terrain, Typography)?', 'Particles')
+    const scene = prompt('Scene?', 'Kaleidoscope')
     if (!bar || !scene) return
     await ctx.director.addCue({ bar: parseInt(bar), action: 'switch', scene })
     alert('Cue added.')
@@ -151,48 +153,49 @@ export function setupUI(ctx: {
     alert(cues || 'No cues')
   }
 
-  // Quality panel
+  // Quality
   const applyQuality = () => ctx.engine.setQuality({
     scale: parseFloat(qScale.value),
     msaa: parseInt(qMSAA.value),
-    taa: qTAA.checked,
     bloom: qBloom.checked,
+    bloomInt: parseFloat(qBloomInt.value),
     ssao: qSSAO.checked,
-    motionBlur: qMB.checked,
-    dof: qDOF.checked
+    dof: qDOF.checked,
+    ca: parseFloat(qCA.value),
+    vignette: parseFloat(qVig.value),
+    grain: parseFloat(qGrain.value),
+    glitch: parseFloat(vjGlitch.value)
   })
   qScale.oninput = applyQuality
   qMSAA.onchange = applyQuality
-  qTAA.onchange = applyQuality
   qBloom.onchange = applyQuality
+  qBloomInt.oninput = applyQuality
   qSSAO.onchange = applyQuality
-  qMB.onchange = applyQuality
   qDOF.onchange = applyQuality
+  qCA.oninput = applyQuality
+  qVig.oninput = applyQuality
+  qGrain.oninput = applyQuality
+  vjGlitch.oninput = applyQuality
   applyQuality()
 
-  // Raymarch steps to Tunnel scene
-  qSteps.oninput = () => {
-    // no-op here; scene reads analyzer to modulate internally; could dispatch custom event
-  }
-  qParticles.oninput = () => { /* could recreate particle scene with different count */ }
-  qFluid.onchange = () => { /* reinitialize fluid with resolution */ }
+  // Raymarch steps (Tunnel)
+  qSteps.oninput = () => { /* If needed, add engine.current param wiring */ }
+  qParticles.oninput = () => { /* Could recreate particle scene with new count */ }
+  qFluid.onchange = () => { /* Re-init fluid with new res if implemented */ }
 
   // VJ
   vjIntensity.oninput = () => ctx.vj.setIntensity(parseFloat(vjIntensity.value))
-  vjBloom.oninput = () => ctx.vj.setBloom(parseFloat(vjBloom.value))
-  vjGlitch.oninput = () => ctx.vj.setGlitch(parseFloat(vjGlitch.value))
   vjSpeed.oninput = () => ctx.vj.setSpeed(parseFloat(vjSpeed.value))
   vjLearn.onclick = () => ctx.vj.enableMIDILearn((learn) => {
-    alert('Twist your knobs now to map CCs to Intensity/Bloom/Glitch/Speed.')
+    alert('Twist knobs now to map CCs to Intensity/Glitch/Speed.')
     learn(1, v => vjIntensity.value = String(v))
-    learn(2, v => vjBloom.value = String(v))
-    learn(3, v => vjGlitch.value = String(v))
-    learn(4, v => vjSpeed.value = String(0.2 + v*1.8))
+    learn(2, v => vjGlitch.value = String(v))
+    learn(3, v => vjSpeed.value = String(0.5 + v*1.5))
   })
 
   // Accessibility
   accHighContrast.onchange = () => document.documentElement.style.setProperty('--panel', accHighContrast.checked ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.55)')
-  accReducedMotion.onchange = () => { /* throttle engine updates or clamp analyzer->visual mapping */ }
+  accReducedMotion.onchange = () => { /* throttle engine updates or clamp mapping */ }
   accEpilepsy.onchange = () => { /* clamp bloom/intensity & strobe freq */ }
   accLimiter.oninput = () => { /* clamp global intensity ceiling */ }
 }

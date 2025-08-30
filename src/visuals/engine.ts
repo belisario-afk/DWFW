@@ -1,11 +1,17 @@
 import * as THREE from 'three'
-import { EffectComposer, RenderPass, EffectPass, BloomEffect, ToneMappingEffect, DepthOfFieldEffect, SSAOEffect } from 'postprocessing'
+import {
+  EffectComposer, RenderPass, EffectPass,
+  BloomEffect, ToneMappingEffect, DepthOfFieldEffect, SSAOEffect,
+  ChromaticAberrationEffect, NoiseEffect, VignetteEffect, GlitchEffect
+} from 'postprocessing'
 import { Analyzer } from '@audio/analyzer'
 import { ParticlesScene } from '@scenes/Particles'
 import { FluidScene } from '@scenes/Fluid2D'
 import { TunnelScene } from '@scenes/Tunnel'
 import { TerrainScene } from '@scenes/Terrain'
 import { TypographyScene } from '@scenes/Typography'
+import { KaleidoscopeScene } from '@scenes/Kaleidoscope'
+import { CoverParticlesScene } from '@scenes/CoverParticles'
 import { BaseScene } from './baseScene'
 
 export type Palette = { primary: string; secondary: string; tert: string; bg: string }
@@ -22,6 +28,7 @@ export class VisualEngine {
   pixelRatio = Math.min(devicePixelRatio, 2)
   palette: Palette = { primary: '#ff5a5f', secondary: '#2ec4b6', tert: '#ffd166', bg: '#0a0a0a' }
   envTex: THREE.Texture | null = null
+  albumURL: string | null = null
 
   current: BaseScene
   next: BaseScene | null = null
@@ -30,12 +37,16 @@ export class VisualEngine {
   lastFrameTime = performance.now()
   targetFPS = 60
 
-  // Postprocessing toggles
-  useTAA = true
+  // Postprocessing settings
   useBloom = true
+  bloomIntensity = 1.2
   useSSAO = false
   useDOF = false
-  useMB = false
+  chromAb = 0.2
+  vignette = 0.25
+  grain = 0.15
+  glitch = 0.0
+
   msaa = 0
   renderScale = 1.0
 
@@ -44,7 +55,9 @@ export class VisualEngine {
     'Fluid': FluidScene,
     'Tunnel': TunnelScene,
     'Terrain': TerrainScene,
-    'Typography': TypographyScene
+    'Typography': TypographyScene,
+    'Kaleidoscope': KaleidoscopeScene,
+    'CoverParticles': CoverParticlesScene
   }
 
   analyzer: Analyzer
@@ -55,7 +68,7 @@ export class VisualEngine {
   }
 
   async init(container: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: this.msaa > 0 })
+    this.renderer = new THREE.WebGLRenderer({ antialias: this.msaa > 0, powerPreference: 'high-performance' })
     this.renderer.setClearColor(this.palette.bg)
     this.renderer.autoClear = false
     container.appendChild(this.renderer.domElement)
@@ -65,7 +78,6 @@ export class VisualEngine {
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.01, 2000)
     this.camera.position.set(0, 0, 5)
 
-    // Build composers BEFORE first resize
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.sceneA, this.camera))
 
@@ -86,6 +98,7 @@ export class VisualEngine {
     this.current.setPalette(p)
     if (this.next) this.next.setPalette(p)
     if (albumURL) {
+      this.albumURL = albumURL
       new THREE.TextureLoader().load(albumURL, (tex) => {
         tex.mapping = THREE.EquirectangularReflectionMapping
         tex.colorSpace = THREE.SRGBColorSpace
@@ -113,31 +126,36 @@ export class VisualEngine {
   }
 
   setQuality(opts: {
-    scale?: number; msaa?: number; taa?: boolean; bloom?: boolean; ssao?: boolean; dof?: boolean; motionBlur?: boolean
+    scale?: number; msaa?: number; bloom?: boolean; bloomInt?: number; ssao?: boolean; dof?: boolean;
+    ca?: number; vignette?: number; grain?: number; glitch?: number
   }) {
     if (opts.scale !== undefined) this.renderScale = opts.scale
     if (opts.msaa !== undefined) this.msaa = opts.msaa
-    if (opts.taa !== undefined) this.useTAA = opts.taa
     if (opts.bloom !== undefined) this.useBloom = opts.bloom
+    if (opts.bloomInt !== undefined) this.bloomIntensity = opts.bloomInt
     if (opts.ssao !== undefined) this.useSSAO = opts.ssao
     if (opts.dof !== undefined) this.useDOF = opts.dof
-    if (opts.motionBlur !== undefined) this.useMB = opts.motionBlur
+    if (opts.ca !== undefined) this.chromAb = opts.ca
+    if (opts.vignette !== undefined) this.vignette = opts.vignette
+    if (opts.grain !== undefined) this.grain = opts.grain
+    if (opts.glitch !== undefined) this.glitch = opts.glitch
     this.applyPost()
     this.resize()
   }
 
   private applyPost() {
     const build = (composer: EffectComposer) => {
-      // Remove all except first render pass
-      while ((composer as any).passes.length > 1) {
-        composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
-      }
-      const effects = []
-      if (this.useBloom) effects.push(new BloomEffect({ intensity: 0.7 }))
-      if (this.useSSAO) effects.push(new SSAOEffect(this.camera, (composer as any).getRenderer().getRenderTarget().texture, { samples: 8 }))
-      if (this.useDOF) effects.push(new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, bokehScale: 2.0 }))
-      effects.push(new ToneMappingEffect({ mode: 4 })) // filmic
-      if (effects.length) composer.addPass(new EffectPass(this.camera, ...effects))
+      while ((composer as any).passes.length > 1) composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
+      const fx: any[] = []
+      if (this.useBloom) fx.push(new BloomEffect({ intensity: this.bloomIntensity }))
+      if (this.useSSAO) fx.push(new SSAOEffect(this.camera, (composer as any).getRenderer().getRenderTarget().texture, { samples: 8 }))
+      if (this.useDOF) fx.push(new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, bokehScale: 2.0 }))
+      if (this.chromAb > 0) fx.push(new ChromaticAberrationEffect({ offset: new THREE.Vector2(this.chromAb, 0) }))
+      if (this.vignette > 0) fx.push(new VignetteEffect({ offset: 0.3, darkness: this.vignette }))
+      if (this.grain > 0) fx.push(new NoiseEffect({ premultiply: true, blendFunction: 15 /* ADD */, opacity: this.grain }))
+      if (this.glitch > 0.01) fx.push(new GlitchEffect({ strength: this.glitch }))
+      fx.push(new ToneMappingEffect({ mode: 4 }))
+      if (fx.length) composer.addPass(new EffectPass(this.camera, ...fx))
     }
     if (this.composer) build(this.composer)
     if (this.composerB) build(this.composerB)
@@ -162,21 +180,14 @@ export class VisualEngine {
     const dt = (now - this.lastFrameTime)
     this.lastFrameTime = now
 
+    // Adaptive governor to hold target FPS
     const target = this.targetFPS
     const fps = 1000 / dt
-    if (fps < target - 5 && this.renderScale > 0.8) {
-      this.renderScale = Math.max(0.8, this.renderScale - 0.02)
-      this.resize()
-    } else if (fps > target + 10 && this.renderScale < 2.0) {
-      this.renderScale = Math.min(2.0, this.renderScale + 0.02)
-      this.resize()
-    }
+    if (fps < target - 5 && this.renderScale > 0.8) { this.renderScale = Math.max(0.8, this.renderScale - 0.02); this.resize() }
+    else if (fps > target + 10 && this.renderScale < 2.0) { this.renderScale = Math.min(2.0, this.renderScale + 0.02); this.resize() }
 
     this.current.update(t, delta)
-    if (this.next) {
-      this.next.update(t, delta)
-      this.crossfade = Math.min(1, this.crossfade + delta / this.crossDur)
-    }
+    if (this.next) { this.next.update(t, delta); this.crossfade = Math.min(1, this.crossfade + delta / this.crossDur) }
 
     this.renderer.clear()
     this.composer.render(delta)

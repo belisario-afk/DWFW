@@ -10,31 +10,48 @@ export class Director {
   private analyzer: Analyzer
   private api: SpotifyAPI
   private cues: Cue[] = []
-  private currentBar = 0
-  private barsPerPhrase = 4
   private trackId: string | null = null
+
+  // Beat/section map from Spotify audio-analysis
+  private barStarts: number[] = []
+  private sectionStarts: number[] = []
+  private msOffset = 0
 
   constructor(engine: VisualEngine, analyzer: Analyzer, api: SpotifyAPI) {
     this.engine = engine
     this.analyzer = analyzer
     this.api = api
 
-    analyzer.onFrame(f => {
-      // Beat grid from tempo
-      const spb = 60 / f.tempo
-      const beats = Math.floor(f.time / spb)
-      if (beats !== this.currentBar) {
-        this.currentBar = beats
-        // phrase boundary crossfade
-        if (beats % this.barsPerPhrase === 0) {
-          // no-op; scene change happens on cue or auto-cine
-        }
-        // fire cues
-        this.cues.filter(c => c.bar === beats).forEach(c => {
-          if (c.scene) this.engine.switchScene(c.scene, 1.5)
-        })
+    // Align analyzer beatPhase to playback time using bar grid if available
+    setInterval(async () => {
+      const st = await this.api.getPlaybackState().catch(()=>null)
+      if (!st?.item?.id) return
+      const pos = st.progress_ms || 0
+      const beatPhase = this.phaseAt(pos, this.barStarts)
+      this.analyzer.frame.beatPhase = beatPhase
+      this.analyzer.frame.tempo = this.estimateTempo()
+      this.analyzer.frame.beatConfidence = this.barStarts.length ? 0.9 : 0.5
+    }, 250)
+  }
+
+  private phaseAt(ms: number, starts: number[]) {
+    if (!starts.length) return this.analyzer.frame.beatPhase
+    for (let i=0;i<starts.length-1;i++){
+      if (ms >= starts[i] && ms < starts[i+1]) {
+        const span = starts[i+1] - starts[i]
+        return span>0 ? (ms - starts[i]) / span : 0
       }
-    })
+    }
+    return 0
+  }
+  private estimateTempo() {
+    if (this.barStarts.length > 1) {
+      let acc = 0, n = 0
+      for (let i=1;i<Math.min(this.barStarts.length, 16);i++) { acc += this.barStarts[i]-this.barStarts[i-1]; n++ }
+      const spb = (acc/n)/1000
+      return spb>0 ? 60/spb : this.analyzer.frame.tempo
+    }
+    return this.analyzer.frame.tempo
   }
 
   onTrack(state: SpotifyApi.CurrentPlaybackResponse) {
@@ -42,16 +59,20 @@ export class Director {
     if (id && id !== this.trackId) {
       this.trackId = id
       this.loadCues(id)
-      // Auto-cinematic: choose scene by features
+      // Fetch audio analysis and build bar/section arrays
+      this.api.getAudioAnalysis(id).then(aa => {
+        this.barStarts = (aa.bars || []).map(b => Math.round(b.start * 1000))
+        this.sectionStarts = (aa.sections || []).map(s => Math.round(s.start * 1000))
+      }).catch(()=>{})
+      // Auto-cinematic
       this.api.getAudioFeatures(id).then(feat => {
-        const e = feat.energy
-        const d = feat.danceability
-        const v = feat.valence
+        const e = feat.energy, d = feat.danceability, v = feat.valence, ins = feat.instrumentalness || 0
         const sel =
-          e > 0.7 && d > 0.6 ? 'Particles' :
-          d > 0.7 && v > 0.5 ? 'Fluid' :
+          e > 0.75 && d > 0.6 ? 'CoverParticles' :
+          d > 0.7 && v > 0.5 ? 'Kaleidoscope' :
           e > 0.6 && v < 0.4 ? 'Tunnel' :
-          e < 0.3 ? 'Typography' : 'Terrain'
+          ins > 0.7 ? 'Typography' :
+          e < 0.35 ? 'Fluid' : 'Terrain'
         this.engine.switchScene(sel, 1.2)
       }).catch(() => {})
     }
