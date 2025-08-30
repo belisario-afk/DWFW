@@ -1,11 +1,10 @@
 import * as THREE from 'three'
-import { BaseScene } from '@visuals/engine'
+import { BaseScene } from '@visuals/baseScene'
 
 export class TypographyScene extends BaseScene {
   private scene!: THREE.Scene
   private mesh!: THREE.Mesh
   private mat!: THREE.ShaderMaterial
-  private text = 'DWFW'
   async init(scene: THREE.Scene) {
     this.scene = scene
     const geo = new THREE.PlaneGeometry(2, 2)
@@ -24,7 +23,6 @@ export class TypographyScene extends BaseScene {
         varying vec2 vUv;
         uniform float uTime, uRMS, uCentroid;
         uniform vec3 uPrimary, uSecondary;
-        // SDF text via simple stripes to simulate variable weight/stretch
         void main(){
           vec2 uv = vUv*2.0-1.0;
           float w = 0.05 + uRMS*0.3;

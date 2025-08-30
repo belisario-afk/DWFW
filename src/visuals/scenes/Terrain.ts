@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { BaseScene } from '@visuals/engine'
+import { BaseScene } from '@visuals/baseScene'
 
 export class TerrainScene extends BaseScene {
   private scene!: THREE.Scene

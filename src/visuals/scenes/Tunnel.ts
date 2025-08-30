@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { BaseScene } from '@visuals/engine'
+import { BaseScene } from '@visuals/baseScene'
 
 export class TunnelScene extends BaseScene {
   private scene!: THREE.Scene
@@ -70,7 +70,6 @@ export class TunnelScene extends BaseScene {
             t += d * 0.75;
           }
           vec3 col = shade(p, rd);
-          // neon glow
           col += 0.08 / (abs(map(p))+0.001);
           gl_FragColor = vec4(col, 1.0);
         }

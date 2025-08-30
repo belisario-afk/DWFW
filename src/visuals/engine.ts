@@ -6,6 +6,7 @@ import { FluidScene } from '@scenes/Fluid2D'
 import { TunnelScene } from '@scenes/Tunnel'
 import { TerrainScene } from '@scenes/Terrain'
 import { TypographyScene } from '@scenes/Typography'
+import { BaseScene } from './baseScene'
 
 export type Palette = { primary: string; secondary: string; tert: string; bg: string }
 
@@ -34,11 +35,10 @@ export class VisualEngine {
   useBloom = true
   useSSAO = false
   useDOF = false
-  useMB = false // not supported in current postprocessing build; kept for UI compatibility
+  useMB = false
   msaa = 0
   renderScale = 1.0
 
-  // Scenes
   scenes: Record<string, new (engine: VisualEngine) => BaseScene> = {
     'Particles': ParticlesScene,
     'Fluid': FluidScene,
@@ -51,7 +51,6 @@ export class VisualEngine {
 
   constructor(analyzer: Analyzer) {
     this.analyzer = analyzer
-    // Default current scene placeholder
     this.current = new ParticlesScene(this)
   }
 
@@ -69,7 +68,6 @@ export class VisualEngine {
     this.resize()
     addEventListener('resize', () => this.resize())
 
-    // Post composer for sceneA (current) and sceneB (next)
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.sceneA, this.camera))
 
@@ -77,10 +75,7 @@ export class VisualEngine {
     this.composerB.addPass(new RenderPass(this.sceneB, this.camera))
 
     this.applyPost()
-
-    // init scene
     await this.current.init(this.sceneA)
-
     this.animate()
   }
 
@@ -125,21 +120,18 @@ export class VisualEngine {
     if (opts.bloom !== undefined) this.useBloom = opts.bloom
     if (opts.ssao !== undefined) this.useSSAO = opts.ssao
     if (opts.dof !== undefined) this.useDOF = opts.dof
-    if (opts.motionBlur !== undefined) this.useMB = opts.motionBlur // no-op in applyPost
-    this.applyPost()
-    this.resize()
+    if (opts.motionBlur !== undefined) this.useMB = opts.motionBlur
+    this.applyPost(); this.resize()
   }
 
   private applyPost() {
     const build = (composer: EffectComposer) => {
-      // Remove all except first render pass
       while ((composer as any).passes.length > 1) composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
       const effects = []
       if (this.useBloom) effects.push(new BloomEffect({ intensity: 0.7 }))
       if (this.useSSAO) effects.push(new SSAOEffect(this.camera, (composer as any).getRenderer().getRenderTarget().texture, { samples: 8 }))
       if (this.useDOF) effects.push(new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, bokehScale: 2.0 }))
-      // Motion blur not available in current postprocessing build; toggle is ignored.
-      effects.push(new ToneMappingEffect({ mode: 4 })) // filmic
+      effects.push(new ToneMappingEffect({ mode: 4 }))
       if (effects.length) composer.addPass(new EffectPass(this.camera, ...effects))
     }
     build(this.composer)
@@ -165,39 +157,27 @@ export class VisualEngine {
     const dt = (now - this.lastFrameTime)
     this.lastFrameTime = now
 
-    // Adaptive governor to hold target FPS
     const target = this.targetFPS
     const fps = 1000 / dt
-    if (fps < target - 5 && this.renderScale > 0.8) {
-      this.renderScale = Math.max(0.8, this.renderScale - 0.02)
-      this.resize()
-    } else if (fps > target + 10 && this.renderScale < 2.0) {
-      this.renderScale = Math.min(2.0, this.renderScale + 0.02)
-      this.resize()
-    }
+    if (fps < target - 5 && this.renderScale > 0.8) { this.renderScale = Math.max(0.8, this.renderScale - 0.02); this.resize() }
+    else if (fps > target + 10 && this.renderScale < 2.0) { this.renderScale = Math.min(2.0, this.renderScale + 0.02); this.resize() }
 
-    // update scenes
     this.current.update(t, delta)
-    if (this.next) {
-      this.next.update(t, delta)
-      this.crossfade = Math.min(1, this.crossfade + delta / this.crossDur)
-    }
+    if (this.next) { this.next.update(t, delta); this.crossfade = Math.min(1, this.crossfade + delta / this.crossDur) }
 
-    // render
     this.renderer.clear()
     this.composer.render(delta)
     if (this.next) {
       this.renderer.setScissorTest(true)
       this.renderer.setScissor(0, 0, this.size.x, this.size.y)
       this.renderer.setViewport(0, 0, this.size.x, this.size.y)
-      this.renderer.setClearAlpha(this.crossfade) // cheap cross
+      this.renderer.setClearAlpha(this.crossfade)
       this.composerB.render(delta)
       if (this.crossfade >= 1) {
         this.current.dispose(this.sceneA)
         this.sceneA.clear()
         this.current = this.next
         this.next = null
-        // swap composers scenes
         const tmpScene = this.sceneA
         this.sceneA = this.sceneB
         this.sceneB = tmpScene
@@ -206,13 +186,4 @@ export class VisualEngine {
 
     requestAnimationFrame(this.animate)
   }
-}
-
-export abstract class BaseScene {
-  engine: VisualEngine
-  constructor(engine: VisualEngine) { this.engine = engine }
-  abstract init(scene: THREE.Scene): Promise<void>
-  abstract update(t: number, dt: number): void
-  abstract setPalette(p: { primary: string; secondary: string; tert: string; bg: string }): void
-  abstract dispose(scene: THREE.Scene): void
 }

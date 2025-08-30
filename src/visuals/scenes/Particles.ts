@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { BaseScene } from '@visuals/engine'
+import { BaseScene } from '@visuals/baseScene'
 
 export class ParticlesScene extends BaseScene {
   private scene!: THREE.Scene
@@ -43,13 +43,11 @@ export class ParticlesScene extends BaseScene {
         void main(){
           float t = uTime + seed.x*10.0;
           vec3 pos = offset;
-          // curl-ish motion
           pos.xyz += vec3(
             sin(t*0.31+seed.y*6.2831),
             cos(t*0.21+seed.z*6.2831),
             sin(t*0.17+seed.w*6.2831)
           ) * (0.5 + uInt*1.5);
-          // audio displacement
           pos *= 1.0 + uBass*0.25 + uMid*0.1;
           vGlow = uHigh * 0.9 + uMid*0.2;
           vec4 mv = modelViewMatrix * vec4(pos, 1.0);
