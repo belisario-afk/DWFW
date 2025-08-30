@@ -11,15 +11,22 @@ export type Auth = { token: string; expiresAt: number }
 export type Playback = null
 
 function getClientId(): string {
-  const fromEnv = (import.meta as any)?.env?.VITE_SPOTIFY_CLIENT_ID as string | undefined
-  const fromMeta = (document.querySelector('meta[name="spotify-client-id"]') as HTMLMetaElement | null)?.content
-  const fromLS = localStorage.getItem(CLIENT_ID_LS) || ''
+  // 1) Build-time env (Vite replaces this literal in the bundle)
+  const envId = (import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined)?.trim()
 
-  const id = (fromEnv || fromMeta || fromLS || '').trim()
+  // 2) Runtime meta tag fallback (edit index.html head to set it)
+  const metaId = (document.querySelector('meta[name="spotify-client-id"]') as HTMLMetaElement | null)?.content?.trim()
+  const metaValid = metaId && metaId.length > 0 ? metaId : undefined
+
+  // 3) Runtime localStorage fallback (you can set from DevTools)
+  const lsRaw = localStorage.getItem(CLIENT_ID_LS)
+  const lsId = lsRaw && lsRaw.trim().length > 0 ? lsRaw.trim() : undefined
+
+  const id = envId || metaValid || lsId
   if (!id) {
     console.warn('Spotify Client ID is missing. Set VITE_SPOTIFY_CLIENT_ID in .env at build time, or add <meta name="spotify-client-id" content="..."> in index.html, or set localStorage["spotify:client_id"].')
   }
-  return id
+  return id || ''
 }
 
 function getRedirectUri(): string {
