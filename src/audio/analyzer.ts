@@ -26,17 +26,31 @@ export class Analyzer {
   async init(fftSize = 4096) {
     this.desiredFFT = fftSize
     this.ctx = new AudioContext({ latencyHint: 'interactive' })
-    // Worklet
-    await this.ctx.audioWorklet.addModule(new URL('./worklets/spectral-processor.worklet.ts', import.meta.url))
+
+    // Load worklet from public/ to avoid bundler/URL issues in prod and dev.
+    const workletURL = `${import.meta.env.BASE_URL}worklets/spectral-processor.worklet.js`
+    try {
+      await this.ctx.audioWorklet.addModule(workletURL)
+    } catch (e) {
+      console.error('Failed to load AudioWorklet module:', workletURL, e)
+      throw e
+    }
+
     this.workletNode = new AudioWorkletNode(this.ctx, 'spectral-processor', {
-      numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], processorOptions: { fftSize: fftSize }
+      numberOfInputs: 0,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+      processorOptions: { fftSize }
     })
+
     this.workletNode.port.onmessage = (ev) => {
       const f = ev.data as AnalysisFrame
       this.frame = f
       this.listeners.forEach(cb => cb(f))
     }
-    this.workletNode.connect(this.ctx.destination) // muted output in processor
+
+    // Connect to destination; processor outputs silence so nothing audible.
+    this.workletNode.connect(this.ctx.destination)
   }
 
   setFFT(size: number) {
