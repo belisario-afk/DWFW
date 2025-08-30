@@ -15,11 +15,11 @@
 html, body, #app { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial; }
 canvas { display: block; }
 
-.overlay { position: fixed; inset: 0; pointer-events: none; }
+.overlay { position: fixed; inset: 0; pointer-events: none; z-index: 900; }
 .hud { position: fixed; top: 10px; left: 12px; right: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: none; }
 .badge { pointer-events: auto; background: var(--panel); backdrop-filter: blur(var(--panel-blur)); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; color: var(--muted); font-size: 12px; box-shadow: var(--shadow); }
 
-.center { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.center { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 950; }
 .panel { background: var(--panel); backdrop-filter: blur(var(--panel-blur)); border: 1px solid var(--border); padding: 14px; border-radius: 16px; box-shadow: var(--shadow); }
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .grow { flex: 1 1 auto; min-width: 180px; }
@@ -40,8 +40,9 @@ button:active { transform: translateY(1px) }
   position: fixed; right: 16px; bottom: 16px; width: 56px; height: 56px;
   border-radius: 50%; font-size: 22px; line-height: 1; box-shadow: var(--shadow);
   background: linear-gradient(135deg, var(--acc1), var(--acc2));
-  border: none; color: white; cursor: pointer; z-index: 20;
+  border: none; color: white; cursor: pointer;
   transform-origin: center; transition: transform .2s, box-shadow .2s;
+  z-index: 1001;
 }
 .fab:hover { transform: scale(1.06) }
 .fab:active { transform: scale(0.98) }
@@ -51,8 +52,9 @@ button:active { transform: translateY(1px) }
   position: fixed; right: 16px; bottom: 84px; width: min(760px, calc(100% - 32px));
   background: var(--panel); backdrop-filter: blur(var(--panel-blur));
   border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
-  transform-origin: bottom right; transform: scale(0.92); opacity: 0; pointer-events: none; z-index: 19;
+  transform-origin: bottom right; transform: scale(0.92); opacity: 0; pointer-events: none;
   transition: transform .18s ease, opacity .18s ease;
+  z-index: 1000;
 }
 .dock.open { transform: scale(1); opacity: 1; pointer-events: auto; }
 .dock.min { transform: translateY(10px) scale(0.98); opacity: 0.6; }

@@ -1,7 +1,9 @@
+// Stop calling Spotify with an empty token; throw early to avoid 400 spam.
 export class SpotifyAPI {
   constructor(private token: string) {}
 
   private async call<T>(path: string, init?: RequestInit): Promise<T> {
+    if (!this.token) throw new Error('No token')
     const res = await fetch(`https://api.spotify.com/v1${path}`, {
       ...init,
       headers: {
@@ -22,7 +24,6 @@ export class SpotifyAPI {
   getAudioAnalysis(id: string) { return this.call<any>(`/audio-analysis/${id}`) }
   getAudioFeatures(id: string) { return this.call<any>(`/audio-features/${id}`) }
 
-  // Optional pass-throughs used by UI (no-op if not using Web Playback SDK)
   play(body?: any) { return this.call('/me/player/play', { method: 'PUT', body: body ? JSON.stringify(body) : undefined }) }
   pause() { return this.call('/me/player/pause', { method: 'PUT' }) }
   next() { return this.call('/me/player/next', { method: 'POST' }) }

@@ -18,9 +18,10 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
     requestAnimationFrame(raf)
   }; raf()
 
-  // Hide login after auth (if you want to show until click, move this to after successful token)
   const loginPanel = el('login')
-  loginPanel.classList.add('hidden')
+  const hasToken = !!ctx.auth.token
+  // Show login if no token; hide only when token exists
+  loginPanel.classList.toggle('hidden', hasToken)
 
   // Controls
   const playPause = el('playPause') as HTMLButtonElement
@@ -35,14 +36,18 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
   const captureBtn = el('captureBtn') as HTMLButtonElement
   const trackBadge = el('trackBadge')
 
+  // Guard all API calls behind token presence to avoid 400 spam
+  const ensureToken = () => !!ctx.auth.token
+
   playPause.onclick = async () => {
+    if (!ensureToken()) return alert('Login with Spotify first.')
     const st = await ctx.api.getPlaybackState().catch(()=>null)
     if (st?.is_playing) await (ctx.api as any).pause?.()
     else await (ctx.api as any).play?.()
   }
-  prev.onclick = () => (ctx.api as any).previous?.()
-  next.onclick = () => (ctx.api as any).next?.()
-  volume.oninput = () => (ctx.api as any).setVolume?.(parseFloat(volume.value))
+  prev.onclick = () => { if (ensureToken()) (ctx.api as any).previous?.() }
+  next.onclick = () => { if (ensureToken()) (ctx.api as any).next?.() }
+  volume.oninput = () => { if (ensureToken()) (ctx.api as any).setVolume?.(parseFloat(volume.value)) }
   fullscreen.onclick = () => document.documentElement.requestFullscreen().catch(()=>{})
 
   captureBtn.onclick = async () => {
@@ -68,35 +73,41 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
     } else { rec.stop() }
   }
 
-  // Devices (optional if you wired events in your API wrapper)
-  devices.onchange = () => { if (devices.value) (ctx.api as any).transferPlayback?.(devices.value) }
+  // Devices (optional events)
+  devices.onchange = () => { if (ensureToken() && devices.value) (ctx.api as any).transferPlayback?.(devices.value) }
 
-  // Seek/time/album theming
-  setInterval(async () => {
-    const st = await ctx.api.getPlaybackState().catch(()=>null)
-    if (!st) return
-    const pos = st.progress_ms || 0, dur = st.item?.duration_ms || 1
-    seek.value = String(Math.round(pos / dur * 1000))
-    time.textContent = `${fmt(pos)} / ${fmt(dur)}`
-    trackBadge.textContent = st.item ? `${st.item.name} — ${st.item.artists?.[0]?.name || ''}` : '—'
-    const cover = st?.item?.album?.images?.[0]?.url
-    if (cover && cover !== ctx.engine.albumURL) {
-      ctx.engine.albumURL = cover
-      try {
-        const theme = await extractThemeFromImage(cover)
-        document.documentElement.style.setProperty('--acc1', theme.primary)
-        document.documentElement.style.setProperty('--acc2', theme.secondary)
-        document.documentElement.style.setProperty('--acc3', theme.tert)
-        document.documentElement.style.setProperty('--bg', theme.bg)
-        ;['sw1','sw2','sw3','sw4'].forEach((id, i) => {
-          const s = document.getElementById(id) as HTMLSpanElement
-          if (!s) return; s.style.background = theme.swatches[i] || theme.primary
-        })
-        ctx.engine.setPalette({ primary: theme.primary, secondary: theme.secondary, tert: theme.tert, bg: theme.bg })
-      } catch {}
-    }
-  }, 1000)
+  // Poll playback ONLY if we have a token
+  if (hasToken) {
+    setInterval(async () => {
+      const st = await ctx.api.getPlaybackState().catch(()=>null)
+      if (!st) return
+      const pos = st.progress_ms || 0, dur = st.item?.duration_ms || 1
+      seek.value = String(Math.round(pos / dur * 1000))
+      time.textContent = `${fmt(pos)} / ${fmt(dur)}`
+      trackBadge.textContent = st.item ? `${st.item.name} — ${st.item.artists?.[0]?.name || ''}` : '—'
+      const cover = st?.item?.album?.images?.[0]?.url
+      if (cover && cover !== ctx.engine.albumURL) {
+        ctx.engine.albumURL = cover
+        try {
+          const theme = await extractThemeFromImage(cover)
+          document.documentElement.style.setProperty('--acc1', theme.primary)
+          document.documentElement.style.setProperty('--acc2', theme.secondary)
+          document.documentElement.style.setProperty('--acc3', theme.tert)
+          document.documentElement.style.setProperty('--bg', theme.bg)
+          ;['sw1','sw2','sw3','sw4'].forEach((id, i) => {
+            const s = document.getElementById(id) as HTMLSpanElement
+            if (!s) return; s.style.background = theme.swatches[i] || theme.primary
+          })
+          ctx.engine.setPalette({ primary: theme.primary, secondary: theme.secondary, tert: theme.tert, bg: theme.bg })
+        } catch {}
+      }
+    }, 1000)
+  } else {
+    trackBadge.textContent = 'Not logged in'
+  }
+
   seek.oninput = async () => {
+    if (!ensureToken()) return
     const st = await ctx.api.getPlaybackState().catch(()=>null)
     if (!st) return
     const dur = st.item?.duration_ms || 1
@@ -105,7 +116,7 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
   }
   const fmt = (ms: number) => { const s = Math.floor(ms/1000), m = Math.floor(s/60), ss = s%60; return `${m}:${String(ss).padStart(2,'0')}` }
 
-  // Visuals/FX/Perf wiring (basic; extend as needed)
+  // Visuals/FX/Perf wiring
   const sceneSelect = el('sceneSelect') as HTMLSelectElement
   sceneSelect.onchange = () => ctx.engine.switchScene(sceneSelect.value)
 

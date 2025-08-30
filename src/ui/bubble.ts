@@ -1,3 +1,5 @@
+// Bubble dock: open by default after first load, auto-minimize on idle, tab handling.
+
 const fab = document.getElementById('fab') as HTMLButtonElement | null
 const dock = document.getElementById('dock') as HTMLDivElement | null
 const dockMin = document.getElementById('dockMin') as HTMLButtonElement | null
@@ -30,7 +32,7 @@ function scheduleIdle() {
   if (!dock) return
   if (idleTimer) window.clearTimeout(idleTimer)
   idleTimer = window.setTimeout(() => {
-    if (open) minimized = true, dock.classList.add('min')
+    if (open) { minimized = true; dock.classList.add('min') }
   }, 3500)
 }
 function cancelIdle() {
@@ -46,6 +48,7 @@ dock?.addEventListener('mouseenter', cancelIdle)
 dock?.addEventListener('mousemove', scheduleIdle)
 dock?.addEventListener('mouseleave', scheduleIdle)
 
+// Tabs
 document.addEventListener('click', (e) => {
   const t = e.target as HTMLElement
   if (!t?.classList?.contains('tab')) return
@@ -56,3 +59,6 @@ document.addEventListener('click', (e) => {
   const page = document.getElementById('tab-' + key)
   if (page) page.classList.remove('hidden')
 })
+
+// Auto-open the dock shortly after load so users see the GUI immediately
+setTimeout(() => openDock(), 600)
