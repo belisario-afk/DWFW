@@ -1,3 +1,6 @@
+// Bundle CSS so Vite resolves it at build time
+import './styles.css'
+
 import { Analyzer } from '@audio/analyzer'
 import { VisualEngine } from '@visuals/engine'
 import { setupUI } from '@ui/setup'
