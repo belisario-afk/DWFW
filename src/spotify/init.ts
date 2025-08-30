@@ -5,20 +5,24 @@ import { safeGet, safeSet } from '@utils/storage'
 const TOKEN_KEY = 'spotify:token'
 const REFRESH_KEY = 'spotify:refresh'
 const EXPIRES_KEY = 'spotify:expires'
+const CLIENT_ID_LS = 'spotify:client_id' // optional runtime override
 
 export type Auth = { token: string; expiresAt: number }
 export type Playback = null
 
 function getClientId(): string {
-  const id = import.meta.env.VITE_SPOTIFY_CLIENT_ID
+  const fromEnv = (import.meta as any)?.env?.VITE_SPOTIFY_CLIENT_ID as string | undefined
+  const fromMeta = (document.querySelector('meta[name="spotify-client-id"]') as HTMLMetaElement | null)?.content
+  const fromLS = localStorage.getItem(CLIENT_ID_LS) || ''
+
+  const id = (fromEnv || fromMeta || fromLS || '').trim()
   if (!id) {
-    console.warn('Missing VITE_SPOTIFY_CLIENT_ID. Set it in .env.')
+    console.warn('Spotify Client ID is missing. Set VITE_SPOTIFY_CLIENT_ID in .env at build time, or add <meta name="spotify-client-id" content="..."> in index.html, or set localStorage["spotify:client_id"].')
   }
   return id
 }
 
 function getRedirectUri(): string {
-  // Use callback path; 404.html will bounce back to base and we restore the query
   const base = import.meta.env.BASE_URL || '/'
   const url = new URL(base, location.origin)
   url.pathname = (base.endsWith('/') ? base : base + '/') + 'callback'
@@ -36,13 +40,16 @@ export async function handleAuthRedirectIfNeeded() {
   if (!storedState || !verifier || storedState !== state) {
     clearPkce()
     console.error('State/verifier mismatch; aborting auth.')
-    history.replaceState(null, '', location.pathname) // strip params
+    history.replaceState(null, '', location.pathname)
     return
   }
 
   try {
+    const clientId = getClientId()
+    if (!clientId) throw new Error('Missing Spotify Client ID')
+
     const body = new URLSearchParams()
-    body.set('client_id', getClientId())
+    body.set('client_id', clientId)
     body.set('grant_type', 'authorization_code')
     body.set('code', code)
     body.set('redirect_uri', getRedirectUri())
@@ -66,7 +73,6 @@ export async function handleAuthRedirectIfNeeded() {
     console.error('Token exchange failed', e)
   } finally {
     clearPkce()
-    // strip query params
     history.replaceState(null, '', location.pathname)
   }
 }
@@ -81,8 +87,11 @@ async function refreshTokenIfNeeded(): Promise<string | null> {
   if (!refresh) return null
 
   try {
+    const clientId = getClientId()
+    if (!clientId) throw new Error('Missing Spotify Client ID')
+
     const body = new URLSearchParams()
-    body.set('client_id', getClientId())
+    body.set('client_id', clientId)
     body.set('grant_type', 'refresh_token')
     body.set('refresh_token', refresh)
 
@@ -108,11 +117,17 @@ async function refreshTokenIfNeeded(): Promise<string | null> {
 
 export async function initAuth(): Promise<{ api: SpotifyAPI; auth: Auth; playback: Playback }> {
   const loginBtn = document.getElementById('loginBtn') as HTMLButtonElement | null
+
   const ensureLogin = async () => {
     const token = await refreshTokenIfNeeded()
     if (token) return token
 
-    // Start auth
+    const clientId = getClientId()
+    if (!clientId) {
+      alert('Missing Spotify Client ID. Set VITE_SPOTIFY_CLIENT_ID in .env and rebuild, or add it to index.html in the meta[name="spotify-client-id"].')
+      return null
+    }
+
     const { verifier, state } = createVerifierState()
     const challenge = await createCodeChallenge(verifier)
     const scopes = [
@@ -123,7 +138,7 @@ export async function initAuth(): Promise<{ api: SpotifyAPI; auth: Auth; playbac
     ].join(' ')
     const authUrl = new URL('https://accounts.spotify.com/authorize')
     authUrl.searchParams.set('response_type', 'code')
-    authUrl.searchParams.set('client_id', getClientId())
+    authUrl.searchParams.set('client_id', clientId)
     authUrl.searchParams.set('redirect_uri', getRedirectUri())
     authUrl.searchParams.set('code_challenge_method', 'S256')
     authUrl.searchParams.set('code_challenge', challenge)
@@ -133,12 +148,9 @@ export async function initAuth(): Promise<{ api: SpotifyAPI; auth: Auth; playbac
     return null
   }
 
-  loginBtn?.addEventListener('click', () => ensureLogin())
+  loginBtn?.addEventListener('click', () => void ensureLogin())
 
   const token = await refreshTokenIfNeeded()
-  if (!token) {
-    // Show login panel (handled by index.html default)
-  }
   const api = new SpotifyAPI(token || '')
   const auth: Auth = { token: token || '', expiresAt: parseInt(safeGet<string>(EXPIRES_KEY) || '0') }
   const playback: Playback = null
