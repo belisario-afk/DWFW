@@ -3,31 +3,27 @@ import type { Auth } from '@auth/pkce'
 import type { Playback } from '@spotify/playback'
 import type { VisualEngine } from '@visuals/engine'
 import type { Analyzer } from '@audio/analyzer'
-import type { Director } from '@controllers/director'
-import type { VJ } from '@controllers/vj'
+import { applyThemeToDocument, extractThemeFromImage } from '@ui/theme'
 
-export function setupUI(ctx: {
-  api: SpotifyAPI, auth: Auth, playback: Playback | null, engine: VisualEngine, analyzer: Analyzer, director: Director, vj: VJ
-}) {
+export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback | null, engine: VisualEngine, analyzer: Analyzer }) {
   const el = (id: string) => document.getElementById(id)!
 
-  // FPS label
   const fpsEl = el('fps')
   let last = performance.now(), frames = 0, acc = 0
   const raf = () => {
-    const now = performance.now()
-    const dt = now - last
-    last = now
-    acc += dt; frames++
+    const now = performance.now(), dt = now - last
+    last = now; acc += dt; frames++
     if (acc >= 500) {
       const fps = Math.round((frames / acc) * 1000)
-      fpsEl.textContent = `FPS ${fps} • ${navigator.userAgent}`
+      fpsEl.textContent = `FPS ${fps}`
       frames = 0; acc = 0
     }
     requestAnimationFrame(raf)
   }; raf()
 
-  // Buttons and inputs
+  const trackBadge = el('trackBadge')
+
+  // Playback controls
   const playPause = el('playPause') as HTMLButtonElement
   const prev = el('prev') as HTMLButtonElement
   const next = el('next') as HTMLButtonElement
@@ -39,35 +35,6 @@ export function setupUI(ctx: {
   const time = el('time') as HTMLSpanElement
   const captureBtn = el('captureBtn') as HTMLButtonElement
 
-  const sceneSelect = el('sceneSelect') as HTMLSelectElement
-  const autoCine = el('autoCine') as HTMLButtonElement
-  const cueAdd = el('cueAdd') as HTMLButtonElement
-  const cueList = el('cueList') as HTMLButtonElement
-
-  const qScale = el('qScale') as HTMLInputElement
-  const qMSAA = el('qMSAA') as HTMLSelectElement
-  const qBloom = el('qBloom') as HTMLInputElement
-  const qBloomInt = el('qBloomInt') as HTMLInputElement
-  const qSSAO = el('qSSAO') as HTMLInputElement
-  const qDOF = el('qDOF') as HTMLInputElement
-  const qCA = el('qCA') as HTMLInputElement
-  const qVig = el('qVig') as HTMLInputElement
-  const qGrain = el('qGrain') as HTMLInputElement
-  const qSteps = el('qSteps') as HTMLInputElement
-  const qParticles = el('qParticles') as HTMLInputElement
-  const qFluid = el('qFluid') as HTMLSelectElement
-
-  const vjIntensity = el('vjIntensity') as HTMLInputElement
-  const vjGlitch = el('vjGlitch') as HTMLInputElement
-  const vjSpeed = el('vjSpeed') as HTMLInputElement
-  const vjLearn = el('vjLearn') as HTMLButtonElement
-
-  const accEpilepsy = el('accEpilepsy') as HTMLInputElement
-  const accReducedMotion = el('accReducedMotion') as HTMLInputElement
-  const accHighContrast = el('accHighContrast') as HTMLInputElement
-  const accLimiter = el('accLimiter') as HTMLInputElement
-
-  // Playback handlers
   playPause.onclick = async () => {
     const st = await ctx.api.getPlaybackState().catch(()=>null)
     if (st?.is_playing) await ctx.api.pause(); else await ctx.api.play()
@@ -77,12 +44,13 @@ export function setupUI(ctx: {
   volume.oninput = () => ctx.api.setVolume(parseFloat(volume.value))
   fullscreen.onclick = () => document.documentElement.requestFullscreen().catch(()=>{})
 
-  // Experimental: capture tab/system audio to drive precise analysis
+  // Experimental audio capture for precise analysis
   captureBtn.onclick = async () => {
     const ok = await ctx.analyzer.enableDisplayCapture()
-    alert(ok ? 'Audio capture enabled. Visuals now react to real audio.' : 'Audio capture was blocked or not granted.')
+    alert(ok ? 'Audio capture enabled' : 'Capture blocked or not granted')
   }
 
+  // Recording
   let rec: MediaRecorder | null = null
   let chunks: BlobPart[] = []
   record.onclick = () => {
@@ -119,7 +87,7 @@ export function setupUI(ctx: {
   })
   devices.onchange = () => { if (devices.value) ctx.api.transferPlayback(devices.value) }
 
-  // Seek and time
+  // Seek/time
   setInterval(async () => {
     const st = await ctx.api.getPlaybackState().catch(()=>null)
     if (!st) return
@@ -127,6 +95,19 @@ export function setupUI(ctx: {
     const dur = st.item?.duration_ms || 1
     seek.value = String(Math.round(pos / dur * 1000))
     time.textContent = `${fmt(pos)} / ${fmt(dur)}`
+    if (st.item?.album?.images?.[0]?.url) {
+      const url = st.item.album.images[0].url
+      ctx.engine.setAlbumCover(url)
+      // swatches
+      try {
+        const t = await extractThemeFromImage(url)
+        ;['sw1','sw2','sw3','sw4'].forEach((id, i) => {
+          const s = document.getElementById(id) as HTMLSpanElement
+          if (s && t.swatches[i]) s.style.background = t.swatches[i]
+        })
+      } catch {}
+    }
+    trackBadge.textContent = st.item ? `${st.item.name} — ${st.item.artists?.[0]?.name || ''}` : '—'
   }, 1000)
   seek.oninput = async () => {
     const st = await ctx.api.getPlaybackState().catch(()=>null)
@@ -137,65 +118,40 @@ export function setupUI(ctx: {
   }
   const fmt = (ms: number) => { const s = Math.floor(ms/1000), m = Math.floor(s/60), ss = s%60; return `${m}:${String(ss).padStart(2,'0')}` }
 
-  // Scene selection
+  // Visual tabs & quality
+  const sceneSelect = el('sceneSelect') as HTMLSelectElement
   sceneSelect.onchange = () => ctx.engine.switchScene(sceneSelect.value)
-  autoCine.onclick = () => alert('Auto-Cinematic uses Spotify audio features per track.')
 
-  cueAdd.onclick = async () => {
-    const bar = prompt('Cue at bar number?', '33')
-    const scene = prompt('Scene?', 'Kaleidoscope')
-    if (!bar || !scene) return
-    await ctx.director.addCue({ bar: parseInt(bar), action: 'switch', scene })
-    alert('Cue added.')
-  }
-  cueList.onclick = () => {
-    const cues = ctx.director.listCues().map(c => `Bar ${c.bar} → ${c.scene}`).join('\n')
-    alert(cues || 'No cues')
-  }
+  const apply = () => ctx.engine.setQuality({
+    renderScale: (document.getElementById('qScale') as HTMLSelectElement).value === 'auto' ? 'auto' : parseFloat((document.getElementById('qScale') as HTMLSelectElement).value),
+    msaa: parseInt((document.getElementById('qMSAA') as HTMLSelectElement).value) as any,
+    targetFPS: parseInt((document.getElementById('qFPS') as HTMLInputElement).value),
+    intensity: parseFloat((document.getElementById('vjIntensity') as HTMLInputElement).value),
+    speed: parseFloat((document.getElementById('vjSpeed') as HTMLInputElement).value),
 
-  // Quality
-  const applyQuality = () => ctx.engine.setQuality({
-    scale: parseFloat(qScale.value),
-    msaa: parseInt(qMSAA.value),
-    bloom: qBloom.checked,
-    bloomInt: parseFloat(qBloomInt.value),
-    ssao: qSSAO.checked,
-    dof: qDOF.checked,
-    ca: parseFloat(qCA.value),
-    vignette: parseFloat(qVig.value),
-    grain: parseFloat(qGrain.value),
-    glitch: parseFloat(vjGlitch.value)
-  })
-  qScale.oninput = applyQuality
-  qMSAA.onchange = applyQuality
-  qBloom.onchange = applyQuality
-  qBloomInt.oninput = applyQuality
-  qSSAO.onchange = applyQuality
-  qDOF.onchange = applyQuality
-  qCA.oninput = applyQuality
-  qVig.oninput = applyQuality
-  qGrain.oninput = applyQuality
-  vjGlitch.oninput = applyQuality
-  applyQuality()
+    bloom: (document.getElementById('qBloom') as HTMLInputElement).checked,
+    bloomIntensity: parseFloat((document.getElementById('qBloomInt') as HTMLInputElement).value),
+    ssao: (document.getElementById('qSSAO') as HTMLInputElement).checked,
+    dof: (document.getElementById('qDOF') as HTMLInputElement).checked,
+    chromAb: parseFloat((document.getElementById('qCA') as HTMLInputElement).value),
+    vignette: parseFloat((document.getElementById('qVig') as HTMLInputElement).value),
+    grain: parseFloat((document.getElementById('qGrain') as HTMLInputElement).value),
+    glitch: parseFloat((document.getElementById('qGlitch') as HTMLInputElement).value),
 
-  // Raymarch steps (Tunnel)
-  qSteps.oninput = () => { /* If needed, add engine.current param wiring */ }
-  qParticles.oninput = () => { /* Could recreate particle scene with new count */ }
-  qFluid.onchange = () => { /* Re-init fluid with new res if implemented */ }
+    particles: {
+      count: parseInt((document.getElementById('qParticles') as HTMLInputElement).value),
+      size: parseFloat((document.getElementById('qPSize') as HTMLInputElement).value),
+      spread: parseFloat((document.getElementById('qPSpread') as HTMLInputElement).value)
+    },
+    tunnel: { steps: parseInt((document.getElementById('qSteps') as HTMLInputElement).value) },
+    fluid: { res: parseInt((document.getElementById('qFluid') as HTMLSelectElement).value) as any }
+  } as any)
 
-  // VJ
-  vjIntensity.oninput = () => ctx.vj.setIntensity(parseFloat(vjIntensity.value))
-  vjSpeed.oninput = () => ctx.vj.setSpeed(parseFloat(vjSpeed.value))
-  vjLearn.onclick = () => ctx.vj.enableMIDILearn((learn) => {
-    alert('Twist knobs now to map CCs to Intensity/Glitch/Speed.')
-    learn(1, v => vjIntensity.value = String(v))
-    learn(2, v => vjGlitch.value = String(v))
-    learn(3, v => vjSpeed.value = String(0.5 + v*1.5))
-  })
+  ;['qScale','qMSAA','qFPS','vjIntensity','vjSpeed','qBloom','qBloomInt','qSSAO','qDOF','qCA','qVig','qGrain','qGlitch','qParticles','qPSize','qPSpread','qSteps','qFluid']
+    .forEach(id => (document.getElementById(id) as HTMLInputElement | HTMLSelectElement).addEventListener('input', apply))
+  apply()
 
-  // Accessibility
-  accHighContrast.onchange = () => document.documentElement.style.setProperty('--panel', accHighContrast.checked ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.55)')
-  accReducedMotion.onchange = () => { /* throttle engine updates or clamp mapping */ }
-  accEpilepsy.onchange = () => { /* clamp bloom/intensity & strobe freq */ }
-  accLimiter.oninput = () => { /* clamp global intensity ceiling */ }
+  // Accessibility hooks
+  const accHighContrast = el('accHighContrast') as HTMLInputElement
+  accHighContrast.onchange = () => document.documentElement.style.setProperty('--panel', accHighContrast.checked ? 'rgba(0,0,0,0.8)' : 'rgba(8,8,10,0.6)')
 }

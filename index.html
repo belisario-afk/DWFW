@@ -2,128 +2,142 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!-- Remove favicon/manifest until you add a real icon to silence 404s -->
+    <!-- Tip: add a real icon at public/icon.png before re-enabling -->
     <!-- <link rel="icon" href="/DWFW/icon.png" /> -->
     <!-- <link rel="manifest" href="/DWFW/site.webmanifest" /> -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>DWFW — Spotify Visual Director</title>
+    <title>DWFW — Visual Director</title>
     <meta name="theme-color" content="#000000" />
-    <style>
-      :root {
-        --bg: #0a0a0a;
-        --fg: #eaeaea;
-        --muted: #9aa0a6;
-        --acc1: #ff5a5f;
-        --acc2: #2ec4b6;
-        --acc3: #ffd166;
-        --panel: rgba(0,0,0,0.55);
-        --panel-blur: 8px;
-      }
-      * { box-sizing: border-box; }
-      html, body, #app { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--fg); }
-      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial; }
-      canvas { display: block; }
-      .overlay { position: fixed; inset: 0; pointer-events: none; }
-      .ui { position: fixed; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 12px; pointer-events: none; }
-      .row { display: flex; gap: 12px; align-items: center; pointer-events: auto; flex-wrap: wrap; }
-      .panel { background: var(--panel); backdrop-filter: blur(var(--panel-blur)); border: 1px solid rgba(255,255,255,0.08); padding: 10px 12px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-      .grow { flex: 1 1 auto; min-width: 180px; }
-      button, select, input[type=range] { background: #111; color: var(--fg); border: 1px solid #222; border-radius: 10px; padding: 8px 10px; }
-      button:hover { border-color: var(--acc2); }
-      .tag { font-size: 12px; color: var(--muted); }
-      #fps { position: fixed; top: 10px; right: 12px; }
-      #login { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); }
-      .hidden { display: none !important; }
-      .wardrobe-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); display: inline-block; margin-right: 6px; }
-      .screensaver { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; color: var(--muted); }
-      .screensaver.active { display: flex; }
-      label { margin-right: 8px; }
-    </style>
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
     <div id="app"></div>
 
     <div class="overlay">
-      <div id="fps" class="panel"></div>
+      <div class="hud">
+        <div class="badge" id="trackBadge">—</div>
+        <div id="fps" class="badge">FPS …</div>
+      </div>
     </div>
 
-    <div id="login" class="panel">
+    <div id="login" class="panel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%)">
       <h2>DWFW — Spotify Visual Director</h2>
-      <p>Login with Spotify to start. Premium users can play in-app; others can control an active device.</p>
-      <button id="loginBtn">Login with Spotify</button>
-      <button id="captureBtn" title="Experimental: capture tab/system audio to drive precise analysis">Capture Audio (AI)</button>
-      <p class="tag">No secrets stored. Uses Authorization Code Flow with PKCE.</p>
+      <p>Login with Spotify to start. Optional: capture tab/system audio for precise reactivity.</p>
+      <div class="row">
+        <button id="loginBtn">Login with Spotify</button>
+        <button id="captureBtn" title="Experimental: capture tab/system audio">Capture Audio (AI)</button>
+      </div>
+      <p class="badge">Uses Authorization Code Flow with PKCE. No secrets stored.</p>
     </div>
 
     <div class="ui hidden" id="ui">
-      <div class="row panel">
-        <button id="playPause">Play</button>
-        <button id="prev">Prev</button>
-        <button id="next">Next</button>
-        <input id="seek" type="range" min="0" max="1000" value="0" class="grow" />
-        <span id="time" class="tag">0:00 / 0:00</span>
-        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" />
-        <select id="devices"></select>
-        <button id="fullscreen">Fullscreen</button>
-        <button id="record">Record</button>
-      </div>
-      <div class="row">
-        <div class="panel">
-          <label>Scene:
-            <select id="sceneSelect">
-              <option>Particles</option>
-              <option>Fluid</option>
-              <option>Tunnel</option>
-              <option>Terrain</option>
-              <option>Typography</option>
-              <option>Kaleidoscope</option>
-              <option>CoverParticles</option>
-            </select>
-          </label>
-          <button id="autoCine">Auto-Cinematic</button>
-          <button id="cueAdd">Add Cue @Bar</button>
-          <button id="cueList">Cues</button>
-        </div>
-        <div class="panel">
-          <strong>Quality</strong>
-          <label>Scale <input id="qScale" type="range" min="1" max="2" step="0.1" value="1" /></label>
-          <label>MSAA<select id="qMSAA"><option>0</option><option>2</option><option>4</option><option>8</option></select></label>
-          <label>Bloom <input id="qBloom" type="checkbox" checked /></label>
-          <label>Bloom Int <input id="qBloomInt" type="range" min="0" max="3" step="0.05" value="1.2" /></label>
-          <label>SSAO <input id="qSSAO" type="checkbox" /></label>
-          <label>DOF <input id="qDOF" type="checkbox" /></label>
-          <label>ChromAb <input id="qCA" type="range" min="0" max="1.5" step="0.01" value="0.2" /></label>
-          <label>Vignette <input id="qVig" type="range" min="0" max="1" step="0.01" value="0.25" /></label>
-          <label>Grain <input id="qGrain" type="range" min="0" max="1" step="0.01" value="0.15" /></label>
-          <label>Raymarch Steps <input id="qSteps" type="range" min="128" max="1024" value="512" /></label>
-          <label>Particles <input id="qParticles" type="range" min="100000" max="5000000" step="100000" value="1500000" /></label>
-          <label>Fluid Res <select id="qFluid"><option>512</option><option selected>1024</option><option>2048</option></select></label>
-        </div>
-        <div class="panel">
-          <strong>VJ</strong>
-          <label>Intensity <input id="vjIntensity" type="range" min="0" max="1.5" step="0.01" value="0.9" /></label>
-          <label>Glitch <input id="vjGlitch" type="range" min="0" max="1" step="0.01" value="0.0" /></label>
-          <label>Speed <input id="vjSpeed" type="range" min="0.5" max="2.0" step="0.01" value="1.0" /></label>
-          <button id="vjLearn">MIDI Learn</button>
-        </div>
-        <div class="panel">
-          <strong>Accessibility</strong>
-          <label>Epilepsy-safe <input id="accEpilepsy" type="checkbox" /></label>
-          <label>Reduced motion <input id="accReducedMotion" type="checkbox" /></label>
-          <label>High contrast <input id="accHighContrast" type="checkbox" /></label>
-          <label>Intensity limiter <input id="accLimiter" type="range" min="0.2" max="1.0" step="0.05" value="0.85" /></label>
-        </div>
-        <div class="panel">
-          <div id="palette"><span class="wardrobe-dot" style="background:#444"></span><span class="wardrobe-dot" style="background:#777"></span></div>
-          <span id="gpuLabel" class="tag">GPU: …</span>
+      <div class="panel">
+        <div class="row">
+          <button id="playPause">Play</button>
+          <button id="prev">Prev</button>
+          <button id="next">Next</button>
+          <input id="seek" type="range" min="0" max="1000" value="0" class="grow" />
+          <span id="time" class="badge">0:00 / 0:00</span>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" />
+          <select id="devices"></select>
+          <button id="fullscreen">Fullscreen</button>
+          <button id="record">Record</button>
         </div>
       </div>
-    </div>
 
-    <div id="screensaver" class="screensaver">
-      <div>Ambient Screensaver — press any key or change track to resume</div>
+      <div class="panel">
+        <div class="tabs">
+          <div class="tab active" data-tab="visuals">Visuals</div>
+          <div class="tab" data-tab="fx">FX</div>
+          <div class="tab" data-tab="perf">Performance</div>
+          <div class="tab" data-tab="access">Accessibility</div>
+        </div>
+
+        <div id="tab-visuals">
+          <div class="row">
+            <label>Scene:
+              <select id="sceneSelect">
+                <option>Particles</option>
+                <option>Fluid</option>
+                <option>Tunnel</option>
+                <option>Terrain</option>
+                <option>Typography</option>
+              </select>
+            </label>
+            <button id="autoCine">Auto-Cinematic</button>
+            <div id="palette" class="badge">Palette:
+              <span id="sw1" class="swatch" style="background:#444"></span>
+              <span id="sw2" class="swatch" style="background:#777"></span>
+              <span id="sw3" class="swatch" style="background:#aaa"></span>
+              <span id="sw4" class="swatch" style="background:#ddd"></span>
+            </div>
+          </div>
+          <div class="row">
+            <label>Intensity <input id="vjIntensity" type="range" min="0.2" max="1.8" step="0.01" value="1.0" /></label>
+            <label>Speed <input id="vjSpeed" type="range" min="0.5" max="2.0" step="0.01" value="1.0" /></label>
+          </div>
+          <div class="row">
+            <label>Particles Count <input id="qParticles" type="range" min="100000" max="2000000" step="100000" value="500000" /></label>
+            <label>Particle Size <input id="qPSize" type="range" min="0.5" max="3.0" step="0.05" value="1.6" /></label>
+            <label>Spread <input id="qPSpread" type="range" min="3" max="12" step="0.1" value="6" /></label>
+            <label>Raymarch Steps <input id="qSteps" type="range" min="256" max="1024" step="32" value="640" /></label>
+            <label>Fluid Res
+              <select id="qFluid"><option>512</option><option selected>1024</option><option>2048</option></select>
+            </label>
+          </div>
+        </div>
+
+        <div id="tab-fx" class="hidden">
+          <div class="row">
+            <label>Bloom <input id="qBloom" type="checkbox" checked /></label>
+            <label>Bloom Int <input id="qBloomInt" type="range" min="0" max="3" step="0.05" value="1.1" /></label>
+            <label>SSAO <input id="qSSAO" type="checkbox" /></label>
+            <label>DOF <input id="qDOF" type="checkbox" /></label>
+          </div>
+          <div class="row">
+            <label>ChromAb <input id="qCA" type="range" min="0" max="1.5" step="0.01" value="0.15" /></label>
+            <label>Vignette <input id="qVig" type="range" min="0" max="1" step="0.01" value="0.25" /></label>
+            <label>Grain <input id="qGrain" type="range" min="0" max="1" step="0.01" value="0.12" /></label>
+            <label>Glitch <input id="qGlitch" type="range" min="0" max="1" step="0.01" value="0.0" /></label>
+          </div>
+        </div>
+
+        <div id="tab-perf" class="hidden">
+          <div class="row">
+            <label>Render Scale
+              <select id="qScale"><option value="auto">Auto</option><option value="0.75">0.75x</option><option value="1">1.0x</option><option value="1.5">1.5x</option><option value="2">2.0x</option></select>
+            </label>
+            <label>MSAA <select id="qMSAA"><option>0</option><option>2</option><option>4</option><option>8</option></select></label>
+            <label>Target FPS <input id="qFPS" type="range" min="30" max="90" step="5" value="60" /></label>
+          </div>
+        </div>
+
+        <div id="tab-access" class="hidden">
+          <div class="row">
+            <label>Epilepsy-safe <input id="accEpilepsy" type="checkbox" /></label>
+            <label>Reduced motion <input id="accReduced" type="checkbox" /></label>
+            <label>High contrast <input id="accHighContrast" type="checkbox" /></label>
+            <label>Intensity limiter <input id="accLimiter" type="range" min="0.2" max="1.0" step="0.05" value="0.9" /></label>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Tab toggling
+      document.addEventListener('click', (e) => {
+        const t = e.target
+        if (!(t instanceof HTMLElement)) return
+        if (t.classList.contains('tab')) {
+          document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'))
+          t.classList.add('active')
+          const key = t.dataset.tab
+          document.querySelectorAll('[id^="tab-"]').forEach(p => p.classList.add('hidden'))
+          const page = document.getElementById('tab-' + key)
+          if (page) page.classList.remove('hidden')
+        }
+      })
+    </script>
   </body>
 </html>
