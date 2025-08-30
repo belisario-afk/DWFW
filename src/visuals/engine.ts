@@ -65,9 +65,7 @@ export class VisualEngine {
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.01, 2000)
     this.camera.position.set(0, 0, 5)
 
-    this.resize()
-    addEventListener('resize', () => this.resize())
-
+    // Build composers BEFORE first resize
     this.composer = new EffectComposer(this.renderer)
     this.composer.addPass(new RenderPass(this.sceneA, this.camera))
 
@@ -75,6 +73,9 @@ export class VisualEngine {
     this.composerB.addPass(new RenderPass(this.sceneB, this.camera))
 
     this.applyPost()
+    this.resize()
+    addEventListener('resize', () => this.resize())
+
     await this.current.init(this.sceneA)
     this.animate()
   }
@@ -121,21 +122,25 @@ export class VisualEngine {
     if (opts.ssao !== undefined) this.useSSAO = opts.ssao
     if (opts.dof !== undefined) this.useDOF = opts.dof
     if (opts.motionBlur !== undefined) this.useMB = opts.motionBlur
-    this.applyPost(); this.resize()
+    this.applyPost()
+    this.resize()
   }
 
   private applyPost() {
     const build = (composer: EffectComposer) => {
-      while ((composer as any).passes.length > 1) composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
+      // Remove all except first render pass
+      while ((composer as any).passes.length > 1) {
+        composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
+      }
       const effects = []
       if (this.useBloom) effects.push(new BloomEffect({ intensity: 0.7 }))
       if (this.useSSAO) effects.push(new SSAOEffect(this.camera, (composer as any).getRenderer().getRenderTarget().texture, { samples: 8 }))
       if (this.useDOF) effects.push(new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, bokehScale: 2.0 }))
-      effects.push(new ToneMappingEffect({ mode: 4 }))
+      effects.push(new ToneMappingEffect({ mode: 4 })) // filmic
       if (effects.length) composer.addPass(new EffectPass(this.camera, ...effects))
     }
-    build(this.composer)
-    build(this.composerB)
+    if (this.composer) build(this.composer)
+    if (this.composerB) build(this.composerB)
   }
 
   resize() {
@@ -146,8 +151,8 @@ export class VisualEngine {
     this.renderer.setSize(w, h, false)
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
-    this.composer.setSize(w, h)
-    this.composerB.setSize(w, h)
+    if (this.composer) this.composer.setSize(w, h)
+    if (this.composerB) this.composerB.setSize(w, h)
   }
 
   animate = () => {
@@ -159,11 +164,19 @@ export class VisualEngine {
 
     const target = this.targetFPS
     const fps = 1000 / dt
-    if (fps < target - 5 && this.renderScale > 0.8) { this.renderScale = Math.max(0.8, this.renderScale - 0.02); this.resize() }
-    else if (fps > target + 10 && this.renderScale < 2.0) { this.renderScale = Math.min(2.0, this.renderScale + 0.02); this.resize() }
+    if (fps < target - 5 && this.renderScale > 0.8) {
+      this.renderScale = Math.max(0.8, this.renderScale - 0.02)
+      this.resize()
+    } else if (fps > target + 10 && this.renderScale < 2.0) {
+      this.renderScale = Math.min(2.0, this.renderScale + 0.02)
+      this.resize()
+    }
 
     this.current.update(t, delta)
-    if (this.next) { this.next.update(t, delta); this.crossfade = Math.min(1, this.crossfade + delta / this.crossDur) }
+    if (this.next) {
+      this.next.update(t, delta)
+      this.crossfade = Math.min(1, this.crossfade + delta / this.crossDur)
+    }
 
     this.renderer.clear()
     this.composer.render(delta)
