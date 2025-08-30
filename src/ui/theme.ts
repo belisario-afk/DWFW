@@ -1,25 +1,21 @@
-// Simple palette extractor + auto-theming from an album cover image.
-// Uses k-means-like clustering to find 5 colors, then maps to primary/secondary/tert/bg.
 export type Theme = { primary: string; secondary: string; tert: string; bg: string; swatches: string[] }
 
 export async function extractThemeFromImage(url: string): Promise<Theme> {
   const img = await loadImage(url)
-  const { data, width, height } = drawToCanvas(img, 160) // sample small
+  const { data } = drawToCanvas(img, 160)
   const samples: [number, number, number][] = []
   for (let i = 0; i < data.length; i += 4) {
     const a = data[i + 3]
     if (a < 200) continue
     const r = data[i], g = data[i + 1], b = data[i + 2]
-    // Skip near-gray to bias towards color
     const max = Math.max(r, g, b), min = Math.min(r, g, b)
     if (max - min < 12) continue
     samples.push([r, g, b])
   }
   const clusters = kMeans(samples, 5, 12)
-  // Sort by perceived luminance (Y from Rec. 601)
   clusters.sort((a, b) => luminance(a) - luminance(b))
-  const bg = rgbToHex(...clusters[0]) // darkest
-  const primary = rgbToHex(...clusters[4]) // brightest
+  const bg = rgbToHex(...clusters[0])
+  const primary = rgbToHex(...clusters[4])
   const secondary = rgbToHex(...clusters[3])
   const tert = rgbToHex(...clusters[2])
   const swatches = clusters.map(c => rgbToHex(...c))
@@ -55,11 +51,9 @@ function drawToCanvas(img: HTMLImageElement, size: number) {
 
 function kMeans(points: [number, number, number][], k: number, iters: number) {
   if (points.length === 0) return [[20, 20, 24], [80, 80, 90], [180, 180, 190], [220, 220, 230], [255, 255, 255]]
-  // Initialize centroids evenly across sample
   const centroids = Array.from({ length: k }, (_, i) => points[Math.floor((i + 1) * points.length / (k + 1))].slice() as [number, number, number])
   const assigns = new Array(points.length).fill(0)
   for (let it = 0; it < iters; it++) {
-    // Assign
     for (let i = 0; i < points.length; i++) {
       let best = 0, bd = 1e9
       for (let c = 0; c < k; c++) {
@@ -68,7 +62,6 @@ function kMeans(points: [number, number, number][], k: number, iters: number) {
       }
       assigns[i] = best
     }
-    // Update
     const sums = Array.from({ length: k }, () => [0, 0, 0, 0])
     for (let i = 0; i < points.length; i++) {
       const a = assigns[i]; const p = points[i]

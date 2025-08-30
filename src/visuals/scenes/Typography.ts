@@ -1,12 +1,6 @@
 import * as THREE from 'three'
 import { BaseScene } from '@visuals/baseScene'
 
-/**
- * Premium typography-like visualizer:
- * - Circular spectrum bars (12 chroma + broadband)
- * - Beat pulse, centroid-driven spread
- * - High-contrast neon palette blending
- */
 export class TypographyScene extends BaseScene {
   private scene!: THREE.Scene
   private mesh!: THREE.Mesh
@@ -41,18 +35,13 @@ export class TypographyScene extends BaseScene {
         void main(){
           vec2 p = vUv;
           float t = uTime;
-
-          // Base neon grid
           float g = (sin(p.x*20.0 + t*2.0)*0.5+0.5) * (cos(p.y*24.0 - t*2.2)*0.5+0.5);
           g *= 0.05;
 
-          // Circular bars around a ring, expand with centroid
           float baseR = 0.3 + clamp(uCentroid/8000.0, 0.0, 1.0)*0.25 + uRMS*0.15;
           float r1 = ring(p, baseR, 0.02 + uRMS*0.04);
 
-          // Radial bars (12 segments)
           float ang = atan(p.y, p.x);
-          float seg = floor((ang + 3.14159) / (6.28318/12.0));
           float bar = step(0.48, fract((ang + 3.14159) * (12.0 / 6.28318)));
           float amp = 0.3 + uBass*1.8 + uMid*1.2 + uHigh*0.6;
           float bars = smoothstep(baseR-0.03, baseR+amp*0.15, length(p)) * bar;
@@ -61,11 +50,9 @@ export class TypographyScene extends BaseScene {
           col += vec3(0.7,0.2,1.0) * bars * 0.8;
           col += uTertiary * g;
 
-          // Center pulse
           float pulse = smoothstep(0.25, 0.0, length(p)) * (uRMS*1.2 + uHigh*0.5);
           col += vec3(1.0,0.8,0.2) * pulse * 0.35;
 
-          // Vignette
           float vig = smoothstep(1.15, 0.45, length(p));
           col *= vig;
 
@@ -77,7 +64,7 @@ export class TypographyScene extends BaseScene {
     this.scene.add(this.mesh)
   }
 
-  update(t: number, dt: number): void {
+  update(t: number): void {
     const f = this.engine.analyzer.frame
     this.mat.uniforms.uTime.value = t
     this.mat.uniforms.uRMS.value = f.rms

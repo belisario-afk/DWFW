@@ -2,13 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!-- Tip: add a real icon at public/icon.png before re-enabling -->
-    <!-- <link rel="icon" href="/DWFW/icon.png" /> -->
-    <!-- <link rel="manifest" href="/DWFW/site.webmanifest" /> -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DWFW — Visual Director</title>
     <meta name="theme-color" content="#000000" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <div id="app"></div>
@@ -20,7 +17,7 @@
       </div>
     </div>
 
-    <div id="login" class="panel" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%)">
+    <div id="login" class="panel center">
       <h2>DWFW — Spotify Visual Director</h2>
       <p>Login with Spotify to start. Optional: capture tab/system audio for precise reactivity.</p>
       <div class="row">
@@ -30,30 +27,37 @@
       <p class="badge">Uses Authorization Code Flow with PKCE. No secrets stored.</p>
     </div>
 
-    <div class="ui hidden" id="ui">
-      <div class="panel">
-        <div class="row">
-          <button id="playPause">Play</button>
-          <button id="prev">Prev</button>
-          <button id="next">Next</button>
-          <input id="seek" type="range" min="0" max="1000" value="0" class="grow" />
-          <span id="time" class="badge">0:00 / 0:00</span>
-          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" />
-          <select id="devices"></select>
-          <button id="fullscreen">Fullscreen</button>
-          <button id="record">Record</button>
+    <button id="fab" class="fab" aria-label="Open controls">⚙️</button>
+    <div id="dock" class="dock hidden" role="dialog" aria-modal="false" aria-labelledby="dockTabs">
+      <div class="dock-header">
+        <div id="dockTabs" class="tabs">
+          <button class="tab active" data-tab="playback">Playback</button>
+          <button class="tab" data-tab="visuals">Visuals</button>
+          <button class="tab" data-tab="fx">FX</button>
+          <button class="tab" data-tab="perf">Perf</button>
+          <button class="tab" data-tab="access">Access</button>
         </div>
+        <button id="dockMin" class="icon" title="Minimize">—</button>
       </div>
 
-      <div class="panel">
-        <div class="tabs">
-          <div class="tab active" data-tab="visuals">Visuals</div>
-          <div class="tab" data-tab="fx">FX</div>
-          <div class="tab" data-tab="perf">Performance</div>
-          <div class="tab" data-tab="access">Accessibility</div>
-        </div>
+      <div class="dock-body">
+        <section id="tab-playback">
+          <div class="row">
+            <button id="playPause">Play</button>
+            <button id="prev">Prev</button>
+            <button id="next">Next</button>
+            <input id="seek" type="range" min="0" max="1000" value="0" class="grow" />
+            <span id="time" class="badge">0:00 / 0:00</span>
+          </div>
+          <div class="row">
+            <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" />
+            <select id="devices"></select>
+            <button id="fullscreen">Fullscreen</button>
+            <button id="record">Record</button>
+          </div>
+        </section>
 
-        <div id="tab-visuals">
+        <section id="tab-visuals" class="hidden">
           <div class="row">
             <label>Scene:
               <select id="sceneSelect">
@@ -66,10 +70,10 @@
             </label>
             <button id="autoCine">Auto-Cinematic</button>
             <div id="palette" class="badge">Palette:
-              <span id="sw1" class="swatch" style="background:#444"></span>
-              <span id="sw2" class="swatch" style="background:#777"></span>
-              <span id="sw3" class="swatch" style="background:#aaa"></span>
-              <span id="sw4" class="swatch" style="background:#ddd"></span>
+              <span id="sw1" class="swatch"></span>
+              <span id="sw2" class="swatch"></span>
+              <span id="sw3" class="swatch"></span>
+              <span id="sw4" class="swatch"></span>
             </div>
           </div>
           <div class="row">
@@ -85,9 +89,9 @@
               <select id="qFluid"><option>512</option><option selected>1024</option><option>2048</option></select>
             </label>
           </div>
-        </div>
+        </section>
 
-        <div id="tab-fx" class="hidden">
+        <section id="tab-fx" class="hidden">
           <div class="row">
             <label>Bloom <input id="qBloom" type="checkbox" checked /></label>
             <label>Bloom Int <input id="qBloomInt" type="range" min="0" max="3" step="0.05" value="1.1" /></label>
@@ -100,9 +104,9 @@
             <label>Grain <input id="qGrain" type="range" min="0" max="1" step="0.01" value="0.12" /></label>
             <label>Glitch <input id="qGlitch" type="range" min="0" max="1" step="0.01" value="0.0" /></label>
           </div>
-        </div>
+        </section>
 
-        <div id="tab-perf" class="hidden">
+        <section id="tab-perf" class="hidden">
           <div class="row">
             <label>Render Scale
               <select id="qScale"><option value="auto">Auto</option><option value="0.75">0.75x</option><option value="1">1.0x</option><option value="1.5">1.5x</option><option value="2">2.0x</option></select>
@@ -110,34 +114,20 @@
             <label>MSAA <select id="qMSAA"><option>0</option><option>2</option><option>4</option><option>8</option></select></label>
             <label>Target FPS <input id="qFPS" type="range" min="30" max="90" step="5" value="60" /></label>
           </div>
-        </div>
+        </section>
 
-        <div id="tab-access" class="hidden">
+        <section id="tab-access" class="hidden">
           <div class="row">
             <label>Epilepsy-safe <input id="accEpilepsy" type="checkbox" /></label>
             <label>Reduced motion <input id="accReduced" type="checkbox" /></label>
             <label>High contrast <input id="accHighContrast" type="checkbox" /></label>
             <label>Intensity limiter <input id="accLimiter" type="range" min="0.2" max="1.0" step="0.05" value="0.9" /></label>
           </div>
-        </div>
+        </section>
       </div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>
-    <script>
-      // Tab toggling
-      document.addEventListener('click', (e) => {
-        const t = e.target
-        if (!(t instanceof HTMLElement)) return
-        if (t.classList.contains('tab')) {
-          document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'))
-          t.classList.add('active')
-          const key = t.dataset.tab
-          document.querySelectorAll('[id^="tab-"]').forEach(p => p.classList.add('hidden'))
-          const page = document.getElementById('tab-' + key)
-          if (page) page.classList.remove('hidden')
-        }
-      })
-    </script>
+    <script type="module" src="/src/ui/bubble.ts"></script>
   </body>
 </html>

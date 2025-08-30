@@ -1,3 +1,4 @@
+import type * as THREE from 'three'
 import type { VisualEngine } from './engine'
 
 export abstract class BaseScene {

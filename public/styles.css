@@ -5,9 +5,10 @@
   --acc1: #ff5a5f;
   --acc2: #2ec4b6;
   --acc3: #ffd166;
-  --panel: rgba(8, 8, 10, 0.6);
+  --panel: rgba(8, 8, 12, 0.6);
   --panel-blur: 12px;
   --border: rgba(255, 255, 255, 0.08);
+  --shadow: 0 16px 60px rgba(0,0,0,0.45);
 }
 
 * { box-sizing: border-box; }
@@ -16,29 +17,57 @@ canvas { display: block; }
 
 .overlay { position: fixed; inset: 0; pointer-events: none; }
 .hud { position: fixed; top: 10px; left: 12px; right: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: none; }
-.badge { pointer-events: auto; background: var(--panel); backdrop-filter: blur(var(--panel-blur)); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; color: var(--muted); font-size: 12px; }
+.badge { pointer-events: auto; background: var(--panel); backdrop-filter: blur(var(--panel-blur)); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; color: var(--muted); font-size: 12px; box-shadow: var(--shadow); }
 
-#fps { pointer-events: auto; }
-
-.ui { position: fixed; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 12px; pointer-events: none; }
-.panel { background: var(--panel); backdrop-filter: blur(var(--panel-blur)); border: 1px solid var(--border); padding: 12px; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.35); pointer-events: auto; }
+.center { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.panel { background: var(--panel); backdrop-filter: blur(var(--panel-blur)); border: 1px solid var(--border); padding: 14px; border-radius: 16px; box-shadow: var(--shadow); }
 .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-.col { display: grid; gap: 12px; }
 .grow { flex: 1 1 auto; min-width: 180px; }
+.hidden { display: none !important; }
 
 button, select, input[type=range] {
   background: #0e0f12; color: var(--fg);
-  border: 1px solid #1b1d22; border-radius: 10px;
-  padding: 8px 10px; outline: none;
+  border: 1px solid #1b1d22; border-radius: 12px;
+  padding: 10px 12px; outline: none; transition: border .2s, transform .08s ease;
 }
 button:hover { border-color: var(--acc2) }
+button:active { transform: translateY(1px) }
 
-.tabs { display: flex; gap: 8px; margin-bottom: 8px; }
-.tab { background: #0e0f12; border: 1px solid #1b1d22; color: var(--muted); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
-.tab.active { color: var(--fg); border-color: var(--acc2) }
+.swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); display: inline-block; margin-left: 6px; }
 
-.swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); display: inline-block; }
+/* Floating Action Button */
+.fab {
+  position: fixed; right: 16px; bottom: 16px; width: 56px; height: 56px;
+  border-radius: 50%; font-size: 22px; line-height: 1; box-shadow: var(--shadow);
+  background: linear-gradient(135deg, var(--acc1), var(--acc2));
+  border: none; color: white; cursor: pointer; z-index: 20;
+  transform-origin: center; transition: transform .2s, box-shadow .2s;
+}
+.fab:hover { transform: scale(1.06) }
+.fab:active { transform: scale(0.98) }
+
+/* Bubble Dock */
+.dock {
+  position: fixed; right: 16px; bottom: 84px; width: min(760px, calc(100% - 32px));
+  background: var(--panel); backdrop-filter: blur(var(--panel-blur));
+  border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow);
+  transform-origin: bottom right; transform: scale(0.92); opacity: 0; pointer-events: none; z-index: 19;
+  transition: transform .18s ease, opacity .18s ease;
+}
+.dock.open { transform: scale(1); opacity: 1; pointer-events: auto; }
+.dock.min { transform: translateY(10px) scale(0.98); opacity: 0.6; }
+
+.dock-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.icon { background: #0e0f12; border: 1px solid #1b1d22; border-radius: 10px; padding: 6px 8px; }
+
+.tabs { display: flex; gap: 8px; }
+.tab { background: #0e0f12; border: 1px solid #1b1d22; color: var(--muted); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.tab.active { color: var(--fg); border-color: var(--acc2); }
+
+.dock-body { padding: 12px; }
+section.hidden { display: none; }
 
 @media (max-width: 720px) {
+  .dock { right: 12px; left: 12px; width: auto; }
   .row { flex-direction: column; align-items: stretch; }
 }

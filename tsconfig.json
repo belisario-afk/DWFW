@@ -1,29 +1,24 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker", "WebWorker.ImportScripts"],
+    "target": "ES2020",
     "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
-    "jsx": "react-jsx",
     "strict": true,
-    "useDefineForClassFields": true,
-    "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "@auth/*": ["src/auth/*"],
-      "@spotify/*": ["src/spotify/*"],
-      "@audio/*": ["src/audio/*"],
       "@visuals/*": ["src/visuals/*"],
       "@scenes/*": ["src/visuals/scenes/*"],
-      "@controllers/*": ["src/controllers/*"],
+      "@audio/*": ["src/audio/*"],
       "@ui/*": ["src/ui/*"],
-      "@utils/*": ["src/utils/*"]
+      "@spotify/*": ["src/spotify/*"],
+      "@auth/*": ["src/auth/*"],
+      "@utils/*": ["src/utils/*"],
+      "@controllers/*": ["src/controllers/*"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src"]
 }

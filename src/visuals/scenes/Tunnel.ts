@@ -13,7 +13,7 @@ export class TunnelScene extends BaseScene {
       uniforms: {
         uTime: { value: 0 },
         uBass: { value: 0 }, uMid: { value: 0 }, uHigh: { value: 0 },
-        uSteps: { value: this.engine.config.tunnel.steps },
+        uSteps: { value: 640 },
         uColA: { value: new THREE.Color(this.engine.palette.primary) },
         uColB: { value: new THREE.Color(this.engine.palette.secondary) },
         uColC: { value: new THREE.Color(this.engine.palette.tert) }
@@ -39,9 +39,7 @@ export class TunnelScene extends BaseScene {
         vec3 shade(vec3 p, vec3 ro, vec3 rd){
           float d0 = map(p);
           vec2 e = vec2(0.01,0.0);
-          vec3 n = normalize(vec3(
-            map(p+e.xyy)-d0, map(p+e.yxy)-d0, map(p+e.yyx)-d0
-          ));
+          vec3 n = normalize(vec3(map(p+e.xyy)-d0, map(p+e.yxy)-d0, map(p+e.yyx)-d0));
           float diff = clamp(dot(n, -rd), 0.0, 1.0);
           vec3 base = mix(uColA, uColB, 0.5 + 0.5*diff);
           base = mix(base, uColC, 0.25 + 0.25*uHigh);
@@ -78,8 +76,6 @@ export class TunnelScene extends BaseScene {
     this.mat.uniforms.uBass.value = f.bands.bass
     this.mat.uniforms.uMid.value = f.bands.mid
     this.mat.uniforms.uHigh.value = f.bands.highs
-    // Live steps from config
-    this.mat.uniforms.uSteps.value = this.engine.config.tunnel.steps
   }
 
   setPalette(p: { primary: string; secondary: string; tert: string; bg: string }): void {

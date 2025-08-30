@@ -1,25 +1,18 @@
 import { defineConfig } from 'vite'
+import path from 'node:path'
 
-// Important for GitHub Pages to serve from /DWFW/ base
 export default defineConfig({
   base: '/DWFW/',
   resolve: {
-    alias: [
-      { find: /^@auth\/(.*)$/, replacement: '/src/auth/$1' },
-      { find: /^@spotify\/(.*)$/, replacement: '/src/spotify/$1' },
-      { find: /^@audio\/(.*)$/, replacement: '/src/audio/$1' },
-      { find: /^@visuals\/(.*)$/, replacement: '/src/visuals/$1' },
-      { find: /^@scenes\/(.*)$/, replacement: '/src/visuals/scenes/$1' },
-      { find: /^@controllers\/(.*)$/, replacement: '/src/controllers/$1' },
-      { find: /^@ui\/(.*)$/, replacement: '/src/ui/$1' },
-      { find: /^@utils\/(.*)$/, replacement: '/src/utils/$1' }
-    ]
-  },
-  build: {
-    target: 'es2022'
-  },
-  server: {
-    port: 5173,
-    host: '127.0.0.1'
+    alias: {
+      '@visuals': path.resolve(__dirname, 'src/visuals'),
+      '@scenes': path.resolve(__dirname, 'src/visuals/scenes'),
+      '@audio': path.resolve(__dirname, 'src/audio'),
+      '@ui': path.resolve(__dirname, 'src/ui'),
+      '@spotify': path.resolve(__dirname, 'src/spotify'),
+      '@auth': path.resolve(__dirname, 'src/auth'),
+      '@utils': path.resolve(__dirname, 'src/utils'),
+      '@controllers': path.resolve(__dirname, 'src/controllers')
+    }
   }
 })

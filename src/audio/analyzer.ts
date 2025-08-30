@@ -1,6 +1,3 @@
-// Enhanced analyzer: optional precise path via captured tab/system audio using AnalyserNode (FFT 4096/8192).
-// Falls back to AudioWorklet-driven timing if capture isn't enabled.
-
 export type AnalysisFrame = {
   rms: number
   spectralCentroid: number
@@ -31,15 +28,12 @@ export class Analyzer {
   private lastMag!: Float32Array
   private rafId = 0
   private onsetHist: number[] = []
-  private onsetPtr = 0
 
   usingCapture = false
 
   async init(fftSize = 4096) {
     this.desiredFFT = fftSize
     this.ctx = new AudioContext({ latencyHint: 'interactive' })
-
-    // Worklet for baseline timing so visuals animate even without capture.
     const workletURL = `${import.meta.env.BASE_URL}worklets/spectral-processor.worklet.js`
     await this.ctx.audioWorklet.addModule(workletURL)
     this.workletNode = new AudioWorkletNode(this.ctx, 'spectral-processor', {
@@ -98,59 +92,36 @@ export class Analyzer {
   private tick = () => {
     if (!this.analyserNode) return
     this.analyserNode.getFloatFrequencyData(this.freq)
-    const mag = this.freq
-    // Normalize to positive magnitudes
-    let sumMag = 0
-    const N = mag.length
+    const N = this.freq.length
     const magsLin = new Float32Array(N)
-    for (let i=0;i<N;i++) {
-      const m = Math.pow(10, mag[i]/20) // convert dB to linear
-      magsLin[i] = m
-      sumMag += m
-    }
-    // Bands (log-ish buckets)
-    const bands = this.computeBands(magsLin, this.ctx.sampleRate, this.analyserNode.fftSize)
-    // RMS from time domain
+    for (let i=0;i<N;i++) magsLin[i] = Math.pow(10, this.freq[i]/20)
+
+    const bands = this.computeBands(magsLin, this.ctx.sampleRate)
     this.analyserNode.getFloatTimeDomainData(this.timeData)
     let rms = 0; for (let i=0;i<this.timeData.length;i++) rms += this.timeData[i]*this.timeData[i]
     rms = Math.sqrt(rms / this.timeData.length)
-    const spectralCentroid = this.computeCentroid(magsLin, this.ctx.sampleRate, this.analyserNode.fftSize)
-    // Spectral flux
+    const spectralCentroid = this.computeCentroid(magsLin, this.ctx.sampleRate)
     let flux = 0
-    for (let i=0;i<N;i++) {
-      const d = magsLin[i] - this.lastMag[i]
-      if (d > 0) flux += d
-      this.lastMag[i] = magsLin[i]
-    }
-    // Adaptive onset
-    const now = this.ctx.currentTime
-    this.onsetHist.push(flux)
-    if (this.onsetHist.length > 120) this.onsetHist.shift()
+    if (!this.lastMag) this.lastMag = new Float32Array(N)
+    for (let i=0;i<N;i++) { const d = magsLin[i] - this.lastMag[i]; if (d>0) flux += d; this.lastMag[i] = magsLin[i] }
+
+    this.onsetHist.push(flux); if (this.onsetHist.length > 120) this.onsetHist.shift()
     const mean = this.onsetHist.reduce((a,b)=>a+b,0)/this.onsetHist.length
     const sd = Math.sqrt(this.onsetHist.reduce((a,b)=>a+(b-mean)*(b-mean),0)/this.onsetHist.length)
     const onset = flux > mean + 2.5*sd
 
-    const frame = {
-      rms,
-      spectralCentroid,
-      flux,
-      onset,
-      tempo: this.frame.tempo, // director may override
-      beatConfidence: this.frame.beatConfidence,
-      beatPhase: this.frame.beatPhase,
-      chroma: this.estimateChroma(magsLin, this.ctx.sampleRate, this.analyserNode.fftSize),
-      bands,
-      lufsShort: -18, // approx placeholder
-      novelty: flux,
-      time: now
-    } satisfies AnalysisFrame
-
+    const frame: AnalysisFrame = {
+      rms, spectralCentroid, flux, onset,
+      tempo: this.frame.tempo, beatConfidence: this.frame.beatConfidence, beatPhase: this.frame.beatPhase,
+      chroma: this.estimateChroma(magsLin, this.ctx.sampleRate),
+      bands, lufsShort: -18, novelty: flux, time: this.ctx.currentTime
+    }
     this.frame = frame
     this.listeners.forEach(cb => cb(frame))
     this.rafId = requestAnimationFrame(this.tick)
   }
 
-  private computeBands(mags: Float32Array, sr: number, fftSize: number) {
+  private computeBands(mags: Float32Array, sr: number) {
     const ny = sr/2, binHz = ny / mags.length
     const sumRange = (lo: number, hi: number) => {
       const i0 = Math.max(0, Math.floor(lo / binHz))
@@ -168,23 +139,18 @@ export class Analyzer {
     }
   }
 
-  private computeCentroid(mags: Float32Array, sr: number, fftSize: number) {
+  private computeCentroid(mags: Float32Array, sr: number) {
     const ny = sr/2, binHz = ny / mags.length
     let num = 0, den = 0
-    for (let i=0;i<mags.length;i++) {
-      const f = i*binHz
-      const m = mags[i]
-      num += f*m; den += m
-    }
+    for (let i=0;i<mags.length;i++) { const f = i*binHz, m = mags[i]; num += f*m; den += m }
     return den > 0 ? num/den : 0
   }
 
-  private estimateChroma(mags: Float32Array, sr: number, fftSize: number) {
+  private estimateChroma(mags: Float32Array, sr: number) {
     const chroma = new Float32Array(12)
     const ny = sr/2, binHz = ny / mags.length
     for (let i=1;i<mags.length;i++) {
-      const f = i*binHz
-      const m = mags[i]
+      const f = i*binHz, m = mags[i]
       const pitch = 69 + 12*Math.log2(f/440)
       const cls = Math.round(pitch) % 12
       if (isFinite(cls)) chroma[(cls+12)%12] += m
