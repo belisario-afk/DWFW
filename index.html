@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/DWFW/icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DWFW — Spotify Visual Director</title>
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/DWFW/site.webmanifest" />
+    <style>
+      :root {
+        --bg: #0a0a0a;
+        --fg: #eaeaea;
+        --muted: #9aa0a6;
+        --acc1: #ff5a5f;
+        --acc2: #2ec4b6;
+        --acc3: #ffd166;
+        --panel: rgba(0,0,0,0.55);
+        --panel-blur: 8px;
+      }
+      * { box-sizing: border-box; }
+      html, body, #app { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: var(--fg); }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+      canvas { display: block; }
+      .overlay {
+        position: fixed; inset: 0; pointer-events: none;
+      }
+      .ui {
+        position: fixed; left: 12px; right: 12px; bottom: 12px; display: grid; gap: 12px; pointer-events: none;
+      }
+      .row { display: flex; gap: 12px; align-items: center; pointer-events: auto; }
+      .panel {
+        background: var(--panel);
+        backdrop-filter: blur(var(--panel-blur));
+        border: 1px solid rgba(255,255,255,0.08);
+        padding: 10px 12px; border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      }
+      .grow { flex: 1 1 auto; }
+      button, select, input[type=range] {
+        background: #111; color: var(--fg); border: 1px solid #222; border-radius: 10px; padding: 8px 10px;
+      }
+      button:hover { border-color: var(--acc2); }
+      .tag { font-size: 12px; color: var(--muted); }
+      #fps { position: fixed; top: 10px; right: 12px; }
+      #login { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+      .hidden { display: none !important; }
+      .wardrobe-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.35); display: inline-block; margin-right: 6px; }
+      .screensaver { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; color: var(--muted); }
+      .screensaver.active { display: flex; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div class="overlay">
+      <div id="fps" class="panel"></div>
+    </div>
+
+    <div id="login" class="panel">
+      <h2>DWFW — Spotify Visual Director</h2>
+      <p>Login with Spotify to start. Premium users can play inside the app; others can control an active device.</p>
+      <button id="loginBtn">Login with Spotify</button>
+      <p class="tag">No secrets stored. Uses Authorization Code Flow with PKCE.</p>
+    </div>
+
+    <div class="ui hidden" id="ui">
+      <div class="row panel">
+        <button id="playPause">Play</button>
+        <button id="prev">Prev</button>
+        <button id="next">Next</button>
+        <input id="seek" type="range" min="0" max="1000" value="0" class="grow" />
+        <span id="time" class="tag">0:00 / 0:00</span>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" />
+        <select id="devices"></select>
+        <button id="fullscreen">Fullscreen</button>
+        <button id="record">Record</button>
+      </div>
+      <div class="row">
+        <div class="panel">
+          <label>Scene:
+            <select id="sceneSelect">
+              <option>Particles</option>
+              <option>Fluid</option>
+              <option>Tunnel</option>
+              <option>Terrain</option>
+              <option>Typography</option>
+            </select>
+          </label>
+          <button id="autoCine">Auto-Cinematic</button>
+          <button id="cueAdd">Add Cue @Bar</button>
+          <button id="cueList">Cues</button>
+        </div>
+        <div class="panel">
+          <strong>Quality</strong>
+          <label>Scale <input id="qScale" type="range" min="1" max="2" step="0.1" value="1" /></label>
+          <label>MSAA<select id="qMSAA"><option>0</option><option>2</option><option>4</option><option>8</option><option>16</option></select></label>
+          <label>TAA <input id="qTAA" type="checkbox" checked /></label>
+          <label>Bloom <input id="qBloom" type="checkbox" checked /></label>
+          <label>SSAO/SSGI <input id="qSSAO" type="checkbox" /></label>
+          <label>Motion Blur <input id="qMB" type="checkbox" /></label>
+          <label>DOF <input id="qDOF" type="checkbox" /></label>
+          <label>Volumetrics <input id="qVol" type="checkbox" /></label>
+          <label>Raymarch Steps <input id="qSteps" type="range" min="128" max="1024" value="512" /></label>
+          <label>Particles <input id="qParticles" type="range" min="100000" max="5000000" step="100000" value="1000000" /></label>
+          <label>Fluid Res <select id="qFluid"><option>256</option><option>512</option><option selected>1024</option></select></label>
+        </div>
+        <div class="panel">
+          <strong>VJ</strong>
+          <label>Intensity <input id="vjIntensity" type="range" min="0" max="1" step="0.01" value="0.7" /></label>
+          <label>Bloom <input id="vjBloom" type="range" min="0" max="3" step="0.01" value="1.0" /></label>
+          <label>Glitch <input id="vjGlitch" type="range" min="0" max="1" step="0.01" value="0.0" /></label>
+          <label>Speed <input id="vjSpeed" type="range" min="0.2" max="2.0" step="0.01" value="1.0" /></label>
+          <button id="vjLearn">MIDI Learn</button>
+        </div>
+        <div class="panel">
+          <strong>Accessibility</strong>
+          <label>Epilepsy-safe <input id="accEpilepsy" type="checkbox" /></label>
+          <label>Reduced motion <input id="accReducedMotion" type="checkbox" /></label>
+          <label>High contrast <input id="accHighContrast" type="checkbox" /></label>
+          <label>Intensity limiter <input id="accLimiter" type="range" min="0.2" max="1.0" step="0.05" value="0.85" /></label>
+        </div>
+        <div class="panel">
+          <div id="palette"><span class="wardrobe-dot" style="background:#444"></span><span class="wardrobe-dot" style="background:#777"></span></div>
+          <span id="gpuLabel" class="tag">GPU: …</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="screensaver" class="screensaver">
+      <div>Ambient Screensaver — press any key or change track to resume</div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

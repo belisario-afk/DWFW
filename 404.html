@@ -1,0 +1,13 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="refresh" content="0; url=/DWFW/" />
+    <script>
+      // SPA fallback for GitHub Pages to preserve deep links such as /callback
+      const path = window.location.pathname.replace(/^\/DWFW\//, '');
+      sessionStorage.setItem('dwfw:path', path + window.location.search + window.location.hash);
+      window.location.replace('/DWFW/');
+    </script>
+  </head>
+  <body></body>
+</html>

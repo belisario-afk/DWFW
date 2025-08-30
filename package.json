@@ -1,0 +1,22 @@
+{
+  "name": "dwfw",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview --port 5173",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "postprocessing": "^6.35.3",
+    "three": "^0.166.1"
+  },
+  "devDependencies": {
+    "@types/dom-screen-wake-lock": "^1.0.3",
+    "@types/wicg-file-system-access": "^2023.10.5",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.6"
+  }
+}
