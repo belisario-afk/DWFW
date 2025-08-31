@@ -7,13 +7,10 @@ import {
 import { Analyzer } from '@audio/analyzer'
 import { BaseScene } from './baseScene'
 
-import { ParticlesScene } from '@scenes/Particles'
-import { FluidScene } from '@scenes/Fluid2D'
-import { TunnelScene } from '@scenes/Tunnel'
-import { TerrainScene } from '@scenes/Terrain'
-import { TypographyScene } from '@scenes/Typography'
-
-import type { Preset, FXConfig, SceneParams } from '@src/config'
+import { NeonGridScene } from '@scenes/NeonGrid'
+import { LiquidChromeScene } from '@scenes/LiquidChrome'
+import { AudioTerrainScene } from '@scenes/AudioTerrain'
+import { LissajousOrbitalsScene } from '@scenes/LissajousOrbitals'
 
 export type Palette = { primary: string; secondary: string; tert: string; bg: string }
 
@@ -39,31 +36,28 @@ export class VisualEngine {
   targetFPS = 60
 
   useBloom = true
-  bloomIntensity = 1.1
+  bloomIntensity = 1.15
   useSSAO = false
   useDOF = false
-  chromAb = 0.15
-  vignette = 0.25
-  grain = 0.12
+  chromAb = 0.10
+  vignette = 0.22
+  grain = 0.08
 
   msaa = 0
   renderScale: number | 'auto' = 'auto'
 
   analyzer: Analyzer
 
-  pendingParams: Partial<SceneParams> | null = null
-
   scenes: Record<string, new (engine: VisualEngine) => BaseScene> = {
-    Particles: ParticlesScene,
-    Fluid: FluidScene,
-    Tunnel: TunnelScene,
-    Terrain: TerrainScene,
-    Typography: TypographyScene
+    NeonGrid: NeonGridScene,
+    LiquidChrome: LiquidChromeScene,
+    AudioTerrain: AudioTerrainScene,
+    Lissajous: LissajousOrbitalsScene
   }
 
   constructor(analyzer: Analyzer) {
     this.analyzer = analyzer
-    this.current = new ParticlesScene(this)
+    this.current = new NeonGridScene(this)
   }
 
   async init(container: HTMLElement) {
@@ -116,14 +110,23 @@ export class VisualEngine {
     try {
       await this.next.init(this.sceneB)
       this.next.setPalette(this.palette)
-      if (this.pendingParams) this.next.applyParams?.(this.pendingParams)
     } catch (e) {
       console.error('Scene init failed', name, e)
       this.next = null
     }
   }
 
-  setQuality(opts: Partial<FXConfig>) {
+  setQuality(opts: Partial<{
+    scale: number | 'auto'
+    msaa: 0 | 2 | 4 | 8
+    bloom: boolean
+    bloomInt: number
+    ssao: boolean
+    dof: boolean
+    ca: number
+    vignette: number
+    grain: number
+  }>) {
     if (opts.scale !== undefined) this.renderScale = opts.scale
     if (opts.msaa !== undefined) this.msaa = opts.msaa
     if (opts.bloom !== undefined) this.useBloom = opts.bloom
@@ -135,23 +138,6 @@ export class VisualEngine {
     if (opts.grain !== undefined) this.grain = opts.grain
     this.applyPost()
     this.resize()
-  }
-
-  setSceneParams(params: Partial<SceneParams>) {
-    this.pendingParams = { ...(this.pendingParams || {}), ...params }
-    try { this.current.applyParams?.(params) } catch {}
-    try { this.next?.applyParams?.(params) } catch {}
-  }
-
-  setPreset(p: Preset) {
-    // Switch first if scene differs; keep pending params to apply when ready
-    const sceneName = (this.current as any)?.name || 'Current'
-    if ((sceneName as string) !== p.scene) {
-      this.pendingParams = { ...(p.params || {}) }
-      this.switchScene(p.scene, 0.8)
-    }
-    this.setQuality(p.fx)
-    if (p.params) this.setSceneParams(p.params)
   }
 
   private applyPost() {

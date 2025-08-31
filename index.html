@@ -61,21 +61,12 @@
           <div class="row">
             <label>Scene:
               <select id="sceneSelect">
-                <option>Particles</option>
-                <option>Fluid</option>
-                <option>Tunnel</option>
-                <option>Terrain</option>
-                <option>Typography</option>
+                <option>NeonGrid</option>
+                <option>LiquidChrome</option>
+                <option>AudioTerrain</option>
+                <option>Lissajous</option>
               </select>
             </label>
-            <label>Preset:
-              <select id="presetSelect"></select>
-            </label>
-            <label class="badge">
-              <input id="autoAlbum" type="checkbox" checked />
-              Auto (Album)
-            </label>
-            <button id="autoCine">Auto-Cinematic</button>
             <div id="palette" class="badge">Palette:
               <span id="sw1" class="swatch"></span>
               <span id="sw2" class="swatch"></span>
@@ -83,33 +74,19 @@
               <span id="sw4" class="swatch"></span>
             </div>
           </div>
-          <div class="row">
-            <label>Intensity <input id="vjIntensity" type="range" min="0.2" max="1.8" step="0.01" value="1.0" /></label>
-            <label>Speed <input id="vjSpeed" type="range" min="0.5" max="2.0" step="0.01" value="1.0" /></label>
-          </div>
-          <div class="row">
-            <label>Particles Count <input id="qParticles" type="range" min="100000" max="2000000" step="100000" value="500000" /></label>
-            <label>Particle Size <input id="qPSize" type="range" min="0.5" max="3.0" step="0.05" value="1.6" /></label>
-            <label>Spread <input id="qPSpread" type="range" min="3" max="12" step="0.1" value="6" /></label>
-            <label>Raymarch Steps <input id="qSteps" type="range" min="256" max="1024" step="32" value="640" /></label>
-            <label>Fluid Res
-              <select id="qFluid"><option>512</option><option selected>1024</option><option>2048</option></select>
-            </label>
-          </div>
         </section>
 
         <section id="tab-fx" class="hidden">
           <div class="row">
             <label>Bloom <input id="qBloom" type="checkbox" checked /></label>
-            <label>Bloom Int <input id="qBloomInt" type="range" min="0" max="3" step="0.05" value="1.1" /></label>
+            <label>Bloom Int <input id="qBloomInt" type="range" min="0" max="3" step="0.05" value="1.15" /></label>
             <label>SSAO <input id="qSSAO" type="checkbox" /></label>
             <label>DOF <input id="qDOF" type="checkbox" /></label>
           </div>
           <div class="row">
-            <label>ChromAb <input id="qCA" type="range" min="0" max="1.5" step="0.01" value="0.15" /></label>
-            <label>Vignette <input id="qVig" type="range" min="0" max="1" step="0.01" value="0.25" /></label>
-            <label>Grain <input id="qGrain" type="range" min="0" max="1" step="0.01" value="0.12" /></label>
-            <label>Glitch <input id="qGlitch" type="range" min="0" max="1" step="0.01" value="0.0" /></label>
+            <label>ChromAb <input id="qCA" type="range" min="0" max="1.5" step="0.01" value="0.10" /></label>
+            <label>Vignette <input id="qVig" type="range" min="0" max="1" step="0.01" value="0.22" /></label>
+            <label>Grain <input id="qGrain" type="range" min="0" max="1" step="0.01" value="0.08" /></label>
           </div>
         </section>
 
