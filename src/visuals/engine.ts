@@ -141,24 +141,61 @@ export class VisualEngine {
     this.resize()
   }
 
-  private applyPost() {
-    const build = (composer: EffectComposer) => {
-      while ((composer as any).passes.length > 1) composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
-      const fx: any[] = []
-      // Lightweight AA first
-      fx.push(new SMAAEffect())
-      if (this.useBloom) fx.push(new BloomEffect({ intensity: this.bloomIntensity }))
-      if (this.useSSAO) fx.push(new SSAOEffect(this.camera, (composer as any).getRenderer().getRenderTarget().texture, { samples: 8 }))
-      if (this.useDOF) fx.push(new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, bokehScale: 2.0 }))
-      if (this.chromAb > 0) fx.push(new ChromaticAberrationEffect({ offset: new (THREE as any).Vector2(this.chromAb, 0) }))
-      if (this.vignette > 0) fx.push(new VignetteEffect({ offset: 0.3, darkness: this.vignette }))
-      if (this.grain > 0) fx.push(new NoiseEffect({ premultiply: true, blendFunction: 15, opacity: this.grain }))
-      fx.push(new ToneMappingEffect({ mode: 4 }))
-      if (fx.length) composer.addPass(new EffectPass(this.camera, ...fx))
+private applyPost() {
+  const build = (composer: EffectComposer) => {
+    // Keep only the first RenderPass
+    while ((composer as any).passes.length > 1) {
+      composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
     }
-    if (this.composer) build(this.composer)
-    if (this.composerB) build(this.composerB)
+
+    // 1) AA first (lightweight)
+    try {
+      // Remove if you don’t use SMAAEffect
+      const aa = new SMAAEffect()
+      composer.addPass(new EffectPass(this.camera, aa))
+    } catch {}
+
+    // 2) SSAO in its own pass
+    if (this.useSSAO) {
+      const ssao = new SSAOEffect(
+        this.camera,
+        (composer as any).getRenderer().getRenderTarget().texture,
+        { samples: 8 }
+      )
+      composer.addPass(new EffectPass(this.camera, ssao))
+    }
+
+    // 3) DOF in its own pass
+    if (this.useDOF) {
+      const dof = new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, bokehScale: 2.0 })
+      composer.addPass(new EffectPass(this.camera, dof))
+    }
+
+    // 4) Bloom in its own pass
+    if (this.useBloom) {
+      const bloom = new BloomEffect({ intensity: this.bloomIntensity })
+      composer.addPass(new EffectPass(this.camera, bloom))
+    }
+
+    // 5) Chromatic Aberration MUST be its own pass
+    if (this.chromAb > 0) {
+      const ca = new ChromaticAberrationEffect({
+        offset: new THREE.Vector2(this.chromAb, 0)
+      })
+      composer.addPass(new EffectPass(this.camera, ca))
+    }
+
+    // 6) Mergeable “filmic” effects together
+    const filmFx: any[] = []
+    if (this.vignette > 0) filmFx.push(new VignetteEffect({ offset: 0.3, darkness: this.vignette }))
+    if (this.grain > 0) filmFx.push(new NoiseEffect({ premultiply: true, blendFunction: 15, opacity: this.grain }))
+    filmFx.push(new ToneMappingEffect({ mode: 4 }))
+    if (filmFx.length) composer.addPass(new EffectPass(this.camera, ...filmFx))
   }
+
+  if (this.composer) build(this.composer)
+  if (this.composerB) build(this.composerB)
+}
 
   resize() {
     const scale = typeof this.renderScale === 'number' ? this.renderScale : 1.0
