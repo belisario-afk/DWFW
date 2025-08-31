@@ -17,10 +17,11 @@ void main() {
   vUv2 = uv;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
-`
+`;
 
 const frag = `
 precision highp float;
+
 varying vec3 vPos;
 varying vec2 vUv2;
 
@@ -34,60 +35,63 @@ uniform vec3 uBG;
 uniform float uFogD;
 uniform float uHueShift;
 
-// Hash helpers
-float hash(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 17143.123); }
-
-// Hue rotate (approx)
-vec3 hueShift(vec3 c, float a){
-  const mat3 R = mat3(
-    0.299, 0.587, 0.114,
-    0.299, 0.587, 0.114,
-    0.299, 0.587, 0.114
-  );
-  const mat3 I = mat3(
-    0.701, -0.587, -0.114,
-    -0.299, 0.413, -0.114,
-    -0.3, -0.588, 0.886
-  );
-  return clamp((R + I * cos(a) + cross(mat3(0,0,0,0,0,-1,0,1,0), I) * sin(a)) * c, 0.0, 1.0);
-}
-
+// Helpers
 float gridLine(float x, float spacing, float width){
   float gx = abs(fract(x/spacing) - 0.5);
   float d = smoothstep(width*0.9, width, gx);
   return 1.0 - d;
 }
 
+// RGB <-> HSV (iq's)
+vec3 rgb2hsv(vec3 c) {
+  vec4 K = vec4(0., -1./3., 2./3., -1.);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  float e = 1.0e-10;
+  return vec3(abs(q.z + (q.w - q.y) / (6.0*d + e)), d / (q.x + e), q.x);
+}
+vec3 hsv2rgb(vec3 c) {
+  vec3 p = abs(fract(c.xxx + vec3(0., 1./3., 2./3.)) * 6. - 3.);
+  vec3 q = clamp(p - 1., 0., 1.);
+  return c.z * mix(vec3(1.), q, c.y);
+}
+
 void main(){
-  // World coords projected across plane
   vec3 p = vPos;
-  // Grid parameters
-  float spacing = mix(0.8, 1.4, 0.2 + 0.8*clamp(uCentroid,0.0,1.0));
-  float lw = mix(0.008, 0.025, 0.2 + uBass*0.8);
-  // Animated sweep line
-  float sweep = exp(-3.0*uSweep) * smoothstep(0.0, 1.0, sin(uTime*6.2831));
+
+  // Grid params driven by audio
+  float spacing = mix(0.8, 1.4, clamp(uCentroid,0.0,1.0));
+  float lw = mix(0.008, 0.025, clamp(uBass,0.0,1.0));
 
   float gx = gridLine(p.x + sin(uTime*0.8 + p.z*0.5)*0.15*uBass, spacing, lw);
   float gz = gridLine(p.z + cos(uTime*0.7 + p.x*0.35)*0.12*uBass, spacing, lw);
-
   float grid = max(gx, gz);
 
-  // Horizon sun (screen-space y ~ top)
+  // Animated sweep (subtle, non-stroby)
+  float sweep = uSweep * 0.07;
+
+  // Horizon sun band near top of screen
   float sunY = 0.25;
   float sun = smoothstep(0.18, 0.0, abs(vUv2.y - (1.0 - sunY))) * 0.8;
-  // Fog
+
+  // Fog by depth
   float fog = exp(-uFogD * (p.z + 10.0) * 0.25);
 
+  // Accent color blend with hue shift by centroid
   vec3 gridCol = mix(uAcc1, uAcc2, 0.5 + 0.5*sin(uTime*0.25 + p.z*0.1));
-  gridCol = hueShift(gridCol, uHueShift + (uCentroid-0.5)*0.8);
+  vec3 hsv = rgb2hsv(gridCol);
+  hsv.x = fract(hsv.x + uHueShift + (uCentroid-0.5)*0.2);
+  gridCol = hsv2rgb(hsv);
+
   vec3 col = uBG;
   col = mix(col, gridCol, grid * fog);
-  col += sun * hueShift(uAcc2, -0.4);
-  col += sweep * 0.07;
+  col += sun * mix(uAcc2, uAcc1, 0.4);
+  col += vec3(sweep);
 
   gl_FragColor = vec4(col, 1.0);
 }
-`
+`;
 
 export class NeonGridScene extends SceneBase implements BaseScene {
   private plane!: THREE.Mesh
@@ -97,9 +101,9 @@ export class NeonGridScene extends SceneBase implements BaseScene {
     uBass: { value: 0 },
     uCentroid: { value: 0.5 },
     uSweep: { value: 0 },
-    uAcc1: { value: new THREE.Color('#ff3ec8').toArray() as unknown as THREE.Vector3 },
-    uAcc2: { value: new THREE.Color('#2ec4b6').toArray() as unknown as THREE.Vector3 },
-    uBG: { value: new THREE.Color('#0a0a0a').toArray() as unknown as THREE.Vector3 },
+    uAcc1: { value: new THREE.Color('#ff3ec8') },
+    uAcc2: { value: new THREE.Color('#2ec4b6') },
+    uBG: { value: new THREE.Color('#0a0a0a') },
     uFogD: { value: 0.03 },
     uHueShift: { value: 0.0 }
   }
@@ -117,14 +121,12 @@ export class NeonGridScene extends SceneBase implements BaseScene {
     this.plane.position.z = -10
     scene.add(this.plane)
 
-    // Subtle haze box to help bloom
     const hemi = new THREE.HemisphereLight(0xffffff, 0x101010, 0.35)
     scene.add(hemi)
   }
 
   update(t: number, dt: number): void {
     const f = this.engine.analyzer.frame
-    // Simple EMA smoothing
     const ema = (cur: number, target: number, a: number) => cur + (target - cur) * (1 - Math.exp(-a * dt))
 
     const bass = THREE.MathUtils.clamp(f.bands.bass*1.8, 0, 1)
@@ -134,13 +136,12 @@ export class NeonGridScene extends SceneBase implements BaseScene {
     this.uniforms.uTime.value = t
     this.uniforms.uWarp.value = ema(this.uniforms.uWarp.value, 0.15 + bass*0.2, 4.0)
 
-    // Onset sweep (decay towards 0)
-    const sweep = Math.max(0, this.uniforms.uSweep.value - dt*2.5)
-    this.uniforms.uSweep.value = sweep + (f.onset ? 0.6 : 0)
+    // Onset sweep (decay)
+    this.uniforms.uSweep.value = Math.max(0, this.uniforms.uSweep.value - dt*2.5) + (f.onset ? 0.6 : 0)
 
-    // Gentle camera dolly on beats if phase known
+    // Beat-synced gentle camera dolly
     if (f.beatConfidence > 0.4) {
-      const ph = f.beatPhase // 0..1
+      const ph = f.beatPhase
       const z = -10 - Math.sin(ph * Math.PI*2.0) * (0.4 + 0.4*bass)
       this.engine.camera.position.z = z
       this.engine.camera.lookAt(0, 0, -12)
@@ -148,9 +149,9 @@ export class NeonGridScene extends SceneBase implements BaseScene {
   }
 
   setPalette(p: Palette): void {
-    ;(this.uniforms.uAcc1.value as any).set(p.primary)
-    ;(this.uniforms.uAcc2.value as any).set(p.secondary)
-    ;(this.uniforms.uBG.value as any).set(p.bg)
+    (this.uniforms.uAcc1.value as THREE.Color).set(p.primary)
+    (this.uniforms.uAcc2.value as THREE.Color).set(p.secondary)
+    (this.uniforms.uBG.value as THREE.Color).set(p.bg)
   }
 
   dispose(scene: THREE.Scene): void {
