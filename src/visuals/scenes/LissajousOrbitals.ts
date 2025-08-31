@@ -7,30 +7,17 @@ export class LissajousOrbitalsScene extends SceneBase implements BaseScene {
   private points!: THREE.Points
   private geom!: THREE.BufferGeometry
   private mat!: THREE.PointsMaterial
-  private N = 250   // orbits
-  private S = 160   // samples per orbit
+  private N = 260
+  private S = 180
   private t = 0
-  private huePhase = 0
 
   async init(scene: THREE.Scene): Promise<void> {
     this.geom = new THREE.BufferGeometry()
     const total = this.N * this.S
-    const positions = new Float32Array(total * 3)
-    const colors = new Float32Array(total * 3)
-    // Seed positions
-    for (let i=0;i<total;i++) {
-      positions[i*3+0] = 0
-      positions[i*3+1] = 0
-      positions[i*3+2] = 0
-      colors[i*3+0] = 1
-      colors[i*3+1] = 1
-      colors[i*3+2] = 1
-    }
-    this.geom.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    this.geom.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-
+    this.geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(total * 3), 3))
+    this.geom.setAttribute('color', new THREE.BufferAttribute(new Float32Array(total * 3), 3))
     this.mat = new THREE.PointsMaterial({
-      size: 0.035,
+      size: 0.038,
       sizeAttenuation: true,
       vertexColors: true,
       transparent: true,
@@ -38,12 +25,10 @@ export class LissajousOrbitalsScene extends SceneBase implements BaseScene {
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
-
     this.points = new THREE.Points(this.geom, this.mat)
     this.points.position.z = -8
     scene.add(this.points)
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.15))
+    scene.add(new THREE.AmbientLight(0xffffff, 0.16))
   }
 
   update(t: number, dt: number): void {
@@ -52,53 +37,43 @@ export class LissajousOrbitalsScene extends SceneBase implements BaseScene {
     const pos = this.geom.getAttribute('position') as THREE.BufferAttribute
     const col = this.geom.getAttribute('color') as THREE.BufferAttribute
 
-    // Music-locked ratios (gentle quantization)
     const baseTempo = Math.max(60, Math.min(180, f.tempo || 120))
-    const tempoNorm = (baseTempo - 60) / 120 // 0..1
-    const ratioA = 2 + Math.round(3 * tempoNorm) // 2..5
-    const ratioB = 3 + Math.round(4 * (1-tempoNorm)) // 3..7
-    const energy = THREE.MathUtils.clamp(f.rms*3.0, 0, 1)
-    const bass = THREE.MathUtils.clamp(f.bands.bass*2.5, 0, 1)
+    const tn = (baseTempo - 60) / 120
+    const ra = 2 + Math.round(3*tn)
+    const rb = 3 + Math.round(4*(1-tn))
 
-    // Points
-    const total = this.N * this.S
-    let idx = 0
-    const scale = 2.2 + energy*1.5
-    const tube = 0.01 + energy*0.03
+    const energy = THREE.MathUtils.clamp(f.rms*3.0, 0, 1)
+    const scale = 2.4 + energy*1.7
+    const tube = 0.011 + energy*0.03
     const chroma = f.chroma
-    for (let i=0;i<this.N;i++) {
-      const a = i / this.N
+
+    let iV = 0
+    for (let i=0;i<this.N;i++){
+      const a = i/this.N
       const phx = a*6.2831
       const phy = (1.0-a)*6.2831
-      const ax = ratioA + 0.15 * Math.sin(this.t*0.7 + a*10.0)
-      const ay = ratioB + 0.15 * Math.cos(this.t*0.6 + a*9.0)
-      for (let s=0;s<this.S;s++) {
-        const u = s / this.S
+      const ax = ra + 0.12*Math.sin(this.t*0.7 + a*10.0)
+      const ay = rb + 0.12*Math.cos(this.t*0.6 + a*9.0)
+      for (let s=0;s<this.S;s++){
+        const u = s/this.S
         const ang = u*6.2831
         const x = Math.sin(ax*ang + phx)
         const y = Math.sin(ay*ang + phy)
         const z = Math.sin((ax+ay)*0.5*ang + phx*0.5) * 0.25
-        const jitter = (hash(i*131 + s*911 + 7) - 0.5) * tube
-        pos.setXYZ(idx, x*scale + jitter, y*scale + jitter, z*scale*0.5 + jitter)
-        // Color from palette + chroma
-        const prc = (i % 12)
-        const chrom = chroma[prc] || 0.0
-        const c = this.mixPalette(0.4 + 0.6*chrom, a)
-        col.setXYZ(idx, c.r, c.g, c.b)
-        idx++
+        const j = (Math.sin(i*17.0 + s*13.0)*0.5+0.5) * tube
+        pos.setXYZ(iV, x*scale + j, y*scale + j, z*scale*0.5)
+        const prc = i % 12
+        const c = this.mixPalette(0.4 + 0.6*(chroma[prc] || 0.0), a)
+        col.setXYZ(iV, c.r, c.g, c.b)
+        iV++
       }
     }
     pos.needsUpdate = true
     col.needsUpdate = true
 
-    // Onset satellites: punch point size briefly
-    if (f.onset) {
-      this.mat.size = Math.min(0.1, this.mat.size + 0.02)
-    } else {
-      this.mat.size += (0.035 - this.mat.size) * (1 - Math.exp(-8*dt))
-    }
+    if (f.onset) this.mat.size = Math.min(0.12, this.mat.size + 0.025)
+    else this.mat.size += (0.038 - this.mat.size) * (1 - Math.exp(-8*dt))
 
-    // Mild camera orbit on beats
     if (f.beatConfidence > 0.4) {
       const ph = f.beatPhase
       const r = 0.6 + 0.4*energy
@@ -109,9 +84,7 @@ export class LissajousOrbitalsScene extends SceneBase implements BaseScene {
     }
   }
 
-  setPalette(p: Palette): void {
-    // nothing to pre-bake; colors are mixed per-vertex each frame
-  }
+  setPalette(_: Palette): void {}
 
   dispose(scene: THREE.Scene): void {
     scene.remove(this.points)
@@ -124,9 +97,6 @@ export class LissajousOrbitalsScene extends SceneBase implements BaseScene {
     const c1 = new THREE.Color(p.primary)
     const c2 = new THREE.Color(p.secondary)
     const c3 = new THREE.Color(p.tert)
-    const c = c1.clone().lerp(c2, t).lerp(c3, 0.25*Math.sin(a*6.2831*2.0)*0.5+0.5)
-    return c
+    return c1.clone().lerp(c2, t).lerp(c3, 0.25*Math.sin(a*6.2831*2.0)*0.5+0.5)
   }
 }
-
-function hash(x: number){ return (Math.sin(x)*43758.5453)%1 }

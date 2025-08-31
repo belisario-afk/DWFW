@@ -2,14 +2,14 @@ import * as THREE from 'three'
 import {
   EffectComposer, RenderPass, EffectPass,
   BloomEffect, ToneMappingEffect, DepthOfFieldEffect, SSAOEffect,
-  ChromaticAberrationEffect, NoiseEffect, VignetteEffect
+  ChromaticAberrationEffect, NoiseEffect, VignetteEffect, SMAAEffect
 } from 'postprocessing'
 import { Analyzer } from '@audio/analyzer'
 import { BaseScene } from './baseScene'
 
 import { NeonGridScene } from '@scenes/NeonGrid'
-import { LiquidChromeScene } from '@scenes/LiquidChrome'
-import { AudioTerrainScene } from '@scenes/AudioTerrain'
+import { SpectralParticlesScene } from '@scenes/SpectralParticles'
+import { RaymarchTunnelScene } from '@scenes/RaymarchTunnel'
 import { LissajousOrbitalsScene } from '@scenes/LissajousOrbitals'
 
 export type Palette = { primary: string; secondary: string; tert: string; bg: string }
@@ -36,10 +36,10 @@ export class VisualEngine {
   targetFPS = 60
 
   useBloom = true
-  bloomIntensity = 1.15
+  bloomIntensity = 1.2
   useSSAO = false
   useDOF = false
-  chromAb = 0.10
+  chromAb = 0.1
   vignette = 0.22
   grain = 0.08
 
@@ -50,8 +50,8 @@ export class VisualEngine {
 
   scenes: Record<string, new (engine: VisualEngine) => BaseScene> = {
     NeonGrid: NeonGridScene,
-    LiquidChrome: LiquidChromeScene,
-    AudioTerrain: AudioTerrainScene,
+    SpectralParticles: SpectralParticlesScene,
+    RaymarchTunnel: RaymarchTunnelScene,
     Lissajous: LissajousOrbitalsScene
   }
 
@@ -144,6 +144,8 @@ export class VisualEngine {
     const build = (composer: EffectComposer) => {
       while ((composer as any).passes.length > 1) composer.removePass((composer as any).passes[(composer as any).passes.length - 1])
       const fx: any[] = []
+      // Lightweight AA first
+      fx.push(new SMAAEffect())
       if (this.useBloom) fx.push(new BloomEffect({ intensity: this.bloomIntensity }))
       if (this.useSSAO) fx.push(new SSAOEffect(this.camera, (composer as any).getRenderer().getRenderTarget().texture, { samples: 8 }))
       if (this.useDOF) fx.push(new DepthOfFieldEffect(this.camera, { focusDistance: 0.02, bokehScale: 2.0 }))
