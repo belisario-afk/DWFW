@@ -10,6 +10,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@src/*": ["src/*"],
       "@visuals/*": ["src/visuals/*"],
       "@scenes/*": ["src/visuals/scenes/*"],
       "@audio/*": ["src/audio/*"],

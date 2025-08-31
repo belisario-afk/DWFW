@@ -4,6 +4,12 @@ import type { Playback } from '@spotify/init'
 import type { VisualEngine } from '@visuals/engine'
 import type { Analyzer } from '@audio/analyzer'
 import { extractThemeFromImage } from '@ui/theme'
+import { PRESETS, albumDrivenPreset } from '@src/config'
+
+const LS_KEYS = {
+  preset: 'dwfw:preset',
+  autoAlbum: 'dwfw:autoAlbum'
+}
 
 export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback | null, engine: VisualEngine, analyzer: Analyzer }) {
   const el = (id: string) => document.getElementById(id)!
@@ -20,7 +26,6 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
 
   const loginPanel = el('login')
   const hasToken = !!ctx.auth.token
-  // Show login if no token; hide only when token exists
   loginPanel.classList.toggle('hidden', hasToken)
 
   // Controls
@@ -36,7 +41,42 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
   const captureBtn = el('captureBtn') as HTMLButtonElement
   const trackBadge = el('trackBadge')
 
-  // Guard all API calls behind token presence to avoid 400 spam
+  // New: Preset & Auto (Album) controls
+  const sceneSelect = el('sceneSelect') as HTMLSelectElement
+  const presetSelect = document.getElementById('presetSelect') as HTMLSelectElement | null
+  const autoAlbum = document.getElementById('autoAlbum') as HTMLInputElement | null
+
+  // Populate presets
+  if (presetSelect) {
+    presetSelect.innerHTML = ''
+    PRESETS.forEach((p, i) => {
+      const opt = document.createElement('option')
+      opt.value = String(i)
+      opt.textContent = p.name
+      presetSelect.appendChild(opt)
+    })
+    const savedPresetIdx = localStorage.getItem(LS_KEYS.preset)
+    if (savedPresetIdx && PRESETS[Number(savedPresetIdx)]) {
+      presetSelect.value = savedPresetIdx
+      ctx.engine.setPreset(PRESETS[Number(savedPresetIdx)])
+      sceneSelect.value = PRESETS[Number(savedPresetIdx)].scene
+    }
+    presetSelect.onchange = () => {
+      const idx = Number(presetSelect.value)
+      localStorage.setItem(LS_KEYS.preset, String(idx))
+      if (PRESETS[idx]) {
+        ctx.engine.setPreset(PRESETS[idx])
+        sceneSelect.value = PRESETS[idx].scene
+      }
+    }
+  }
+  if (autoAlbum) {
+    const saved = localStorage.getItem(LS_KEYS.autoAlbum)
+    autoAlbum.checked = saved ? saved === '1' : true
+    autoAlbum.onchange = () => localStorage.setItem(LS_KEYS.autoAlbum, autoAlbum.checked ? '1' : '0')
+  }
+
+  // Guard all API calls behind token presence
   const ensureToken = () => !!ctx.auth.token
 
   playPause.onclick = async () => {
@@ -99,6 +139,14 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
             if (!s) return; s.style.background = theme.swatches[i] || theme.primary
           })
           ctx.engine.setPalette({ primary: theme.primary, secondary: theme.secondary, tert: theme.tert, bg: theme.bg })
+
+          // Album-driven preset
+          if (autoAlbum?.checked) {
+            const p = albumDrivenPreset(theme)
+            ctx.engine.setPreset(p)
+            if (presetSelect) presetSelect.value = String(Math.max(0, PRESETS.findIndex(x => x.name === p.name)))
+            if (sceneSelect) sceneSelect.value = p.scene
+          }
         } catch {}
       }
     }, 1000)
@@ -117,12 +165,11 @@ export function setupUI(ctx: { api: SpotifyAPI, auth: Auth, playback: Playback |
   const fmt = (ms: number) => { const s = Math.floor(ms/1000), m = Math.floor(s/60), ss = s%60; return `${m}:${String(ss).padStart(2,'0')}` }
 
   // Visuals/FX/Perf wiring
-  const sceneSelect = el('sceneSelect') as HTMLSelectElement
   sceneSelect.onchange = () => ctx.engine.switchScene(sceneSelect.value)
 
   const apply = () => ctx.engine.setQuality({
     scale: ((document.getElementById('qScale') as HTMLSelectElement).value === 'auto') ? 'auto' as any : parseFloat((document.getElementById('qScale') as HTMLSelectElement).value),
-    msaa: parseInt((document.getElementById('qMSAA') as HTMLSelectElement).value),
+    msaa: parseInt((document.getElementById('qMSAA') as HTMLSelectElement).value) as 0|2|4|8,
     bloom: (document.getElementById('qBloom') as HTMLInputElement).checked,
     bloomInt: parseFloat((document.getElementById('qBloomInt') as HTMLInputElement).value),
     ssao: (document.getElementById('qSSAO') as HTMLInputElement).checked,

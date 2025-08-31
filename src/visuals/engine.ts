@@ -13,6 +13,8 @@ import { TunnelScene } from '@scenes/Tunnel'
 import { TerrainScene } from '@scenes/Terrain'
 import { TypographyScene } from '@scenes/Typography'
 
+import type { Preset, FXConfig, SceneParams } from '@src/config'
+
 export type Palette = { primary: string; secondary: string; tert: string; bg: string }
 
 export class VisualEngine {
@@ -48,6 +50,8 @@ export class VisualEngine {
   renderScale: number | 'auto' = 'auto'
 
   analyzer: Analyzer
+
+  pendingParams: Partial<SceneParams> | null = null
 
   scenes: Record<string, new (engine: VisualEngine) => BaseScene> = {
     Particles: ParticlesScene,
@@ -112,16 +116,14 @@ export class VisualEngine {
     try {
       await this.next.init(this.sceneB)
       this.next.setPalette(this.palette)
+      if (this.pendingParams) this.next.applyParams?.(this.pendingParams)
     } catch (e) {
       console.error('Scene init failed', name, e)
       this.next = null
     }
   }
 
-  setQuality(opts: {
-    scale?: number | 'auto'; msaa?: number; bloom?: boolean; bloomInt?: number; ssao?: boolean; dof?: boolean;
-    ca?: number; vignette?: number; grain?: number
-  }) {
+  setQuality(opts: Partial<FXConfig>) {
     if (opts.scale !== undefined) this.renderScale = opts.scale
     if (opts.msaa !== undefined) this.msaa = opts.msaa
     if (opts.bloom !== undefined) this.useBloom = opts.bloom
@@ -133,6 +135,23 @@ export class VisualEngine {
     if (opts.grain !== undefined) this.grain = opts.grain
     this.applyPost()
     this.resize()
+  }
+
+  setSceneParams(params: Partial<SceneParams>) {
+    this.pendingParams = { ...(this.pendingParams || {}), ...params }
+    try { this.current.applyParams?.(params) } catch {}
+    try { this.next?.applyParams?.(params) } catch {}
+  }
+
+  setPreset(p: Preset) {
+    // Switch first if scene differs; keep pending params to apply when ready
+    const sceneName = (this.current as any)?.name || 'Current'
+    if ((sceneName as string) !== p.scene) {
+      this.pendingParams = { ...(p.params || {}) }
+      this.switchScene(p.scene, 0.8)
+    }
+    this.setQuality(p.fx)
+    if (p.params) this.setSceneParams(p.params)
   }
 
   private applyPost() {

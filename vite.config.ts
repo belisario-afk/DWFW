@@ -5,6 +5,7 @@ export default defineConfig({
   base: '/DWFW/',
   resolve: {
     alias: {
+      '@src': path.resolve(__dirname, 'src'),
       '@visuals': path.resolve(__dirname, 'src/visuals'),
       '@scenes': path.resolve(__dirname, 'src/visuals/scenes'),
       '@audio': path.resolve(__dirname, 'src/audio'),

@@ -1,20 +1,15 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta name="spotify-client-id" content="927fda6918514f96903e828fcd6bb576">    
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DWFW — Visual Director</title>
     <meta name="theme-color" content="#000000" />
-    <!-- Paste your Client ID if you prefer runtime config (optional) -->
     <meta name="spotify-client-id" content="">
-    <!-- Inline favicon to avoid 404s -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2300d084'/%3E%3Ctext x='32' y='40' font-size='28' text-anchor='middle' fill='white' font-family='Arial'%3ED%3C/text%3E%3C/svg%3E" />
   </head>
   <body>
     <div id="app"></div>
 
-    <!-- HUD (track + fps) -->
     <div class="overlay">
       <div class="hud">
         <div class="badge" id="trackBadge">Not logged in</div>
@@ -22,7 +17,6 @@
       </div>
     </div>
 
-    <!-- Login panel -->
     <div id="login" class="panel center">
       <h2>DWFW — Spotify Visual Director</h2>
       <p>Login with Spotify to start. Optional: capture tab/system audio for precise reactivity.</p>
@@ -33,7 +27,6 @@
       <p class="badge">Uses Authorization Code Flow with PKCE. No secrets stored.</p>
     </div>
 
-    <!-- Floating Action Button + Bubble Dock -->
     <button id="fab" class="fab" aria-label="Open controls">⚙️</button>
     <div id="dock" class="dock hidden" role="dialog" aria-modal="false" aria-labelledby="dockTabs">
       <div class="dock-header">
@@ -74,6 +67,13 @@
                 <option>Terrain</option>
                 <option>Typography</option>
               </select>
+            </label>
+            <label>Preset:
+              <select id="presetSelect"></select>
+            </label>
+            <label class="badge">
+              <input id="autoAlbum" type="checkbox" checked />
+              Auto (Album)
             </label>
             <button id="autoCine">Auto-Cinematic</button>
             <div id="palette" class="badge">Palette:
