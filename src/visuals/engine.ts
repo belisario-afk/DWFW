@@ -6,6 +6,7 @@ import {
 } from 'postprocessing'
 import { Analyzer } from '@audio/analyzer'
 import { BaseScene } from './baseScene'
+import { SMAAEffect } from 'postprocessing'
 
 import { NeonGridScene } from '@scenes/NeonGrid'
 import { SpectralParticlesScene } from '@scenes/SpectralParticles'
